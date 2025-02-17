@@ -1,1 +1,1 @@
-"# mahjong-bot" 
+# mahjong-bot
