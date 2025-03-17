@@ -17,6 +17,7 @@ OMNames = {
     }
 WNames = ("East", "South", "West", "North")
 TenhouStr = "mpsz"
+KokushiTiles = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
 
 def tilelist2tenhou(l, sort = True):
     l = sorted(l) if sort else l
@@ -46,6 +47,12 @@ def tenhou2tilelist(s):
                 l[i] += suit_num * 9
             back = 0
     return l
+
+def lstsub(lst1, lst2):
+    out = lst1[:]
+    for x in lst2:
+        out.remove(x)
+    return out
 
 class OpenMeld():
     def __init__(self, opid, tpid, meld_type, tile):
@@ -174,8 +181,56 @@ class RoundState():
                     return self.active_player
         return -1
     
-    def who_can_riichi(self):
+    def who_has_tenpai(self):
+        # get chiitoi and kokushi shanten, explore breadth first with remaining tiles up to shanten depth
         pass
+    
+    def shanten(self, pid):
+        shanten_depth = min(self.shanten_chiitoi(pid), self.shanten_kokushi(pid))
+        hand = self.hands[pid]
+        
+        # remove full melds
+        trips = [tile for tile in set(hand) if hand.count(x) >= 3]
+        for tile in trips:
+            hand = lstsub(hand, [tile]*3)
+        while True:
+            seq = -1
+            for tile in hand:
+                if (tile % 9) < 7 and tile + 1 in hand and tile + 2 in hand:
+                    seq = x
+                    break
+            if seq >= 0:
+                hand.remove(seq)
+                hand.remove(seq + 1)
+                hand.remove(seq + 2)
+            else:
+                break
+        
+        # remove taatsu
+        # TODO
+    
+    def shanten_chiitoi(self, pid):
+        hand = self.hands[pid]
+        if len(hand) < 13:
+            return np.inf
+        pairs = 0
+        for tile in set(hand):
+            if hand.count(tile) >= 2:
+                pairs += 1
+        return 6 - pairs
+    
+    def shanten_kokushi(self, pid):
+        hand = self.hands[pid]
+        if len(hand) < 13:
+            return np.inf
+        has_pair = False
+        terminals = 0
+        for tile in KokushiTiles:
+            if tile in hand:
+                terminals += 1
+                if hand.count(tile) > 1:
+                    has_pair = True
+        return 13 - terminals - (1 if has_pair else 0)
     
     def action_draw(self):
         self.drawn_tile = self.live_wall.pop(0)
