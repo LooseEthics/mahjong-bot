@@ -1,1 +1,4 @@
 lit/*
+*.o
+*.exe
+__pycache__/*
