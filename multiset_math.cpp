@@ -229,6 +229,7 @@ mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth) {
         vec = nextv(vec);
     }
 
+    cnt /= depth;
     std::lock_guard<std::mutex> lock(memo_mutex);
     return memo[key] = cnt;
 }
@@ -265,7 +266,7 @@ mpz_class recurse_cnt_parallel_memoized(const std::vector<int>& super_vec, int d
     }
 
     for (auto& t : threads) t.join();
-    return total;
+    return total/depth;
 }
 
 std::string to_sci_notation(const mpz_class& num, int sig_digits = 4) {
