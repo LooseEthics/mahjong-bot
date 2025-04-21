@@ -204,7 +204,7 @@ struct KeyHash {
 std::unordered_map<Key, mpz_class, KeyHash> memo;
 std::mutex memo_mutex;
 
-mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth) {
+mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth, bool use_perm) {
     Key key{super_vec, depth};
 
     {
@@ -214,7 +214,7 @@ mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth) {
     }
 
     if (depth == 0) {
-        mpz_class val = subset_num(super_vec, {0, 0, 0, 34}, true);
+        mpz_class val = subset_num(super_vec, {0, 0, 0, 34}, use_perm);
         std::lock_guard<std::mutex> lock(memo_mutex);
         return memo[key] = val;
     }
@@ -224,7 +224,7 @@ mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth) {
     while (!vec.empty()) {
         auto subbed = sub_vec(super_vec, vec, 4);
         for (const auto& s : subbed) {
-            cnt += recurse_cnt_memo(s, depth - 1);
+            cnt += recurse_cnt_memo(s, depth - 1, use_perm);
         }
         vec = nextv(vec);
     }
@@ -234,7 +234,7 @@ mpz_class recurse_cnt_memo(const std::vector<int>& super_vec, int depth) {
     return memo[key] = cnt;
 }
 
-mpz_class recurse_cnt_parallel_memoized(const std::vector<int>& super_vec, int depth) {
+mpz_class recurse_cnt_parallel_memoized(const std::vector<int>& super_vec, int depth, bool use_perm) {
     std::vector<std::thread> threads;
     std::mutex mtx;
     mpz_class total = 0;
@@ -257,7 +257,7 @@ mpz_class recurse_cnt_parallel_memoized(const std::vector<int>& super_vec, int d
                 const auto& vec = to_process[j];
                 auto subbed = sub_vec(super_vec, vec, 4);
                 for (const auto& s : subbed) {
-                    local += recurse_cnt_memo(s, depth - 1);
+                    local += recurse_cnt_memo(s, depth - 1, use_perm);
                 }
             }
             std::lock_guard<std::mutex> lock(mtx);
@@ -286,10 +286,18 @@ std::string to_sci_notation(const mpz_class& num, int sig_digits = 4) {
     return oss.str();
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     init_comb_table();
     init_fact_table();
     std::vector<int> super_vec = {0, 0, 0, 34};
+    bool use_perm = true;
+
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "-np") {
+            use_perm = false;
+            break;
+        }
+    }
 
 /*
     std::vector<int> vec = firstv(4*13, 4);
@@ -310,7 +318,7 @@ int main() {
 
     for (int depth = 1; depth <= 4; depth++){
       auto start = std::chrono::high_resolution_clock::now();
-      mpz_class result = recurse_cnt_parallel_memoized(super_vec, depth);
+      mpz_class result = recurse_cnt_parallel_memoized(super_vec, depth, use_perm);
       auto end = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double> elapsed = end - start;
 
