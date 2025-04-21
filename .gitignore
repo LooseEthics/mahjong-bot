@@ -1,4 +1,4 @@
 lit/*
 *.o
 *.exe
-__pycache__/*
+*.pyc
