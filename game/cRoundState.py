@@ -2,6 +2,7 @@
 from random import shuffle, randrange
 from common import *
 from cDiscard import Discard
+from cOpenMeld import OpenMeld
 
 class RoundState():
     def __init__(self):
@@ -19,6 +20,7 @@ class RoundState():
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
         self.live_wall = self.tiles[66:]
         self.drawn_tile = -1
+        self.game_running = True
     
     def __repr__(self):
         s =  f"Turn: {self.turn}\n"
@@ -27,7 +29,7 @@ class RoundState():
         s += f"Live wall: {tilelist2tenhou(self.live_wall, False)}\n"
         s += f"Player hands: \n"
         for i in range(4):
-            s += f"  {WNames[i].ljust(5)} - {tilelist2tenhou(self.hands[i])}\n"
+            s += f"  {WNames[i].ljust(5)} - {tilelist2tenhou(self.hands[i]).ljust(20)} {self.shanten(i)}\n"
         s += f"Discards: {self.discard}\n"
         s += f"Open melds: {self.open}\n"
         s += f"Riichi: {self.riichi}\n"
@@ -70,70 +72,157 @@ class RoundState():
         return -1
     
     def active_can_ankan(self):
-        if self.hands[self.active_player].count(self.drawn_tile) == 3 and self.kan_cnt < 4:
+        if self.hands[self.active_player].count(self.drawn_tile) == 3 and self.kan_cnt() < 4:
             return self.active_player
         return -1
     
     def active_can_shouminkan(self):
-        if self.kan_cnt < 4:
+        if self.kan_cnt() < 4:
             for m in self.open:
                 if m.owner_pid == self.active_player and m.type == PON and m.tile == self.drawn_tile:
                     return self.active_player
         return -1
     
-    def who_has_tenpai(self):
-        # get chiitoi and kokushi shanten, explore breadth first with remaining tiles up to shanten depth
-        pass
+    def open_hand(self, pid: int) -> list[int]:
+        out = self.hands[pid].copy()
+        for m in self.open:
+            if m.owner_pid == pid:
+                if m.type == CHII:
+                    out += [m.tile, m.tile + 1, m.tile + 2]
+                else:
+                    # consider kans equivalent to pons for this
+                    out += 3*[m.tile]
+        if self.active_player == pid and self.drawn_tile != -1:
+            out.append(self.drawn_tile)
+        return sorted(out)
     
-    def shanten(self, pid):
-        shanten_depth = min(self.shanten_chiitoi(pid), self.shanten_kokushi(pid))
-        hand = self.hands[pid]
+    def shanten(self, pid: int) -> int:
+        # find minimal shanten
+        hand = self.hands[pid].copy()
+        if self.active_player == pid and self.drawn_tile != -1:
+            hand.append(self.drawn_tile)
         
-        # remove full melds
-        trips = [tile for tile in set(hand) if hand.count(x) >= 3]
-        for tile in trips:
-            hand = lstsub(hand, [tile]*3)
-        while True:
-            seq = -1
-            for tile in hand:
-                if (tile % 9) < 7 and tile + 1 in hand and tile + 2 in hand:
-                    seq = x
-                    break
-            if seq >= 0:
-                hand.remove(seq)
-                hand.remove(seq + 1)
-                hand.remove(seq + 2)
-            else:
-                break
+        # Check all possible shanten types
+        kokushi = self._shanten_kokushi(hand)
+        if kokushi <= 2:
+            # 10+ unique terminals, this will be the best
+            return kokushi
+        chiitoi = self._shanten_chiitoi(hand)
+        if chiitoi <= 1:
+            # 5+ pairs, standard will be at least 3
+            return chiitoi
+        standard = self._shanten_standard(self.open_hand(pid))
         
-        # remove taatsu
-        # TODO
-    
-    def shanten_chiitoi(self, pid: int):
-        hand = self.hands[pid]
-        if len(hand) < 13:
+        return min(chiitoi, kokushi, standard)
+        
+    def _shanten_chiitoi(self, hand: list[int]) -> int:
+        if len(hand) != 13 and len(hand) != 14:
             return np.inf
+        
         pairs = 0
         for tile in set(hand):
-            if hand.count(tile) >= 2:
+            count = hand.count(tile)
+            if count >= 2:
                 pairs += 1
+        
         return 6 - pairs
-    
-    def shanten_kokushi(self, pid: int):
-        hand = self.hands[pid]
-        if len(hand) < 13:
+
+    def _shanten_kokushi(self, hand: list[int]) -> int:
+        if len(hand) != 13 and len(hand) != 14:
             return np.inf
+        
+        unique_terminals = 0
         has_pair = False
-        terminals = 0
-        for tile in KokushiTiles:
-            if tile in hand:
-                terminals += 1
-                if hand.count(tile) > 1:
+        
+        for tile in set(hand):
+            if tile in KokushiTiles:
+                unique_terminals += 1
+                if hand.count(tile) >= 2:
                     has_pair = True
-        return 13 - terminals - (1 if has_pair else 0)
+        
+        return 13 - unique_terminals - (1 if has_pair else 0)
+
+    def _shanten_standard(self, hand: list[int]) -> int:
+        if len(hand) != 13 and len(hand) != 14:
+            return np.inf
+        
+        min_shanten = 8  # maximum possible shanten for standard form
+        
+        # generate all valid groupings
+        for grouping in self._generate_groupings(hand):
+            complete_melds = 0
+            taatsu = 0
+            remaining_tiles = []
+            
+            for group in grouping:
+                # count complete melds
+                if len(group) == 3:
+                    if (group[0] == group[1] == group[2]) or \
+                       (group[0]+1 == group[1] and group[1]+1 == group[2]):
+                        complete_melds += 1
+                # count taatsu
+                elif len(group) == 2:
+                    if group[0] == group[1]:  # pair
+                        taatsu += 1
+                    elif group[0] + 1 == group[1] or group[0] + 2 == group[1]:  # ryanmen or kanchan
+                        taatsu += 1
+                elif len(group) == 1:
+                    remaining_tiles.append(group[0])
+            
+            # calculate shanten for this grouping
+            current_shanten = 8 - 2*complete_melds - min(4 - complete_melds, taatsu)
+            min_shanten = min(min_shanten, current_shanten)
+            if min_shanten == 0:
+                break
+        
+        return min_shanten
+
+    def _generate_groupings(self, tiles: list[int]) -> list[list[list[int]]]:
+        # generate all possible tile groupings for shanten calc
+        if not tiles:
+            return [[]]
+        
+        groupings = []
+        
+        # Try forming triplets
+        for i in range(len(tiles)):
+            if i + 2 < len(tiles) and tiles[i] == tiles[i + 1] == tiles[i + 2]:
+                remaining = tiles[:i] + tiles[i+3:]
+                for group in self._generate_groupings(remaining):
+                    groupings.append([[tiles[i]]*3] + group)
+        
+        # Try forming sequences (only for number tiles)
+        unique_tiles = sorted(set(t for t in tiles if t < 27))  # Exclude honors
+        for t in unique_tiles:
+            if t + 1 in tiles and t + 2 in tiles and t//9 == (t + 1)//9 == (t + 2)//9:
+                remaining = tiles.copy()
+                remaining.remove(t)
+                remaining.remove(t + 1)
+                remaining.remove(t + 2)
+                for group in self._generate_groupings(remaining):
+                    groupings.append([[t, t+1, t+2]] + group)
+        
+        # Try pairs
+        for i in range(len(tiles)):
+            if i + 1 < len(tiles) and tiles[i] == tiles[i + 1]:
+                remaining = tiles[:i] + tiles[i + 2:]
+                for group in self._generate_groupings(remaining):
+                    groupings.append([[tiles[i]]*2] + group)
+        
+        # Single tiles
+        if not groupings:
+            groupings = [[[t]] for t in tiles]
+        
+        return groupings
+    
+    def round_end(self):
+        self.game_running = False
     
     def action_draw(self):
-        self.drawn_tile = self.live_wall.pop(0)
+        if self.live_wall:
+            self.drawn_tile = self.live_wall.pop(0)
+        else:
+            self.round_end()
     
     def action_draw_kan(self):
         self.drawn_tile = self.dead_wall.pop(10)
@@ -200,14 +289,18 @@ class RoundState():
         self.active_player = pid
     
     def action_shouminkan(self):
-        pass
+        for m in self.open:
+            if m.owner_pid == self.active_player and m.tile == self.drawn_tile and m.type == PON:
+                m.type = SHOUMINKAN
+                self.drawn_tile = -1
+                return
     
     def action_riichi(self):
-        pass
+        self.riichi[self.active_player] = self.turn
     
     def action_ron(self):
-        pass
+        self.round_end()
     
     def action_tsumo(self):
-        pass
+        self.round_end()
     

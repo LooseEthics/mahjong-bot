@@ -60,7 +60,7 @@ def do_postdraw():
         else:
             g.round.action_discard(tenhou2onetile(tile))
 
-while not game_end:
+while g.round.game_running:
     
     print(g.round)
     
