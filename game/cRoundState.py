@@ -21,6 +21,7 @@ class RoundState():
         self.live_wall = self.tiles[66:]
         self.drawn_tile = -1
         self.game_running = True
+        self.winner = []
     
     def __repr__(self):
         s =  f"Turn: {self.turn}\n"
@@ -37,33 +38,43 @@ class RoundState():
         s += f"Ura:  {tilelist2tenhou(self.dead_wall[5:10], False)}\n"
         return s
     
-    def kan_cnt(self):
+    def kan_cnt(self) -> int:
         return sum(1 for m in self.open if m.type in Kans)
     
-    def last_discard(self):
+    def last_discard(self) -> int:
         return self.discard[-1].tile
+        
+    def player_can_pon(self, pid: int) -> bool:
+        return pid != self.active_player and self.hands[pid].count(ldt) >= 2
     
-    def who_can_pon(self):
+    def who_can_pon(self) -> int:
         ldt = self.discard[-1].tile
         for pid in range(4):
-            if pid != self.active_player and self.hands[pid].count(ldt) >= 2:
+            if player_can_pon(pid):
                 return pid
         return -1
     
-    def active_can_chii(self):
+    def possible_chii_starts(self) -> list[int]:
         ldt = self.discard[-1].tile
         ldt_suit = ldt // 9
         ldt_val = ldt % 9
         hand = self.hands[self.active_player]
-        if ldt_suit < 3 and (
-            (ldt_val >= 2 and ldt - 1 in hand and ldt - 2 in hand) or
-            (ldt_val >= 1 and ldt_val <= 7 and ldt - 1 in hand and ldt + 1 in hand) or
-            (ldt_val <= 6 and ldt + 1 in hand and ldt + 2 in hand)
-        ):
+        out = []
+        if ldt_suit < 3:
+            if (ldt_val >= 2 and ldt - 1 in hand and ldt - 2 in hand):
+                out.append(ldt - 2)
+            if (ldt_val >= 1 and ldt_val <= 7 and ldt - 1 in hand and ldt + 1 in hand):
+                out.append(ldt - 1)
+            if (ldt_val <= 6 and ldt + 1 in hand and ldt + 2 in hand):
+                out.append(ldt)
+        return out
+    
+    def active_can_chii(self) -> int:
+        if self.possible_chii_starts() != []:
             return self.active_player
         return -1
     
-    def who_can_minkan(self):
+    def who_can_minkan(self) -> int:
         ldt = self.discard[-1].tile
         if self.kan_cnt() < 4:
             for pid in range(4):
@@ -71,17 +82,15 @@ class RoundState():
                     return pid
         return -1
     
-    def active_can_ankan(self):
-        if self.hands[self.active_player].count(self.drawn_tile) == 3 and self.kan_cnt() < 4:
-            return self.active_player
-        return -1
+    def active_can_ankan(self) -> bool:
+        return self.hands[self.active_player].count(self.drawn_tile) == 3 and self.kan_cnt() < 4
     
-    def active_can_shouminkan(self):
+    def active_can_shouminkan(self) -> bool:
         if self.kan_cnt() < 4:
             for m in self.open:
                 if m.owner_pid == self.active_player and m.type == PON and m.tile == self.drawn_tile:
-                    return self.active_player
-        return -1
+                    return True
+        return False
     
     def open_hand(self, pid: int) -> list[int]:
         out = self.hands[pid].copy()
@@ -215,19 +224,26 @@ class RoundState():
         
         return groupings
     
-    def round_end(self):
+    def round_end(self, pidl: list[int]) -> None:
         self.game_running = False
+        self.winner = pidl
     
-    def action_draw(self):
+    def action_draw(self) -> None:
         if self.live_wall:
             self.drawn_tile = self.live_wall.pop(0)
         else:
-            self.round_end()
+            ## ryuukyoku
+            self.round_end([])
     
-    def action_draw_kan(self):
-        self.drawn_tile = self.dead_wall.pop(10)
+    def action_draw_kan(self) -> None:
+        if len(self.dead_wall) > 10:
+            self.drawn_tile = self.dead_wall.pop(10)
+            ## TODO check suukaikan
+        else:
+            ## 5th kan draw illegal
+            self.round_end([])
     
-    def action_discard(self, tile: int):
+    def action_discard(self, tile: int) -> None:
         ## tile id, not position in hand
         if tile in self.hands[self.active_player]:
             self.hands[self.active_player].remove(tile)
@@ -245,8 +261,8 @@ class RoundState():
         self.active_player = (self.active_player + 1) % 4
         self.turn += 1
     
-    def action_chii(self, start):
-        # starting tile
+    def action_chii(self, start: int) -> None:
+        ## sequence starting tile
         tile = self.last_discard()
         pid = self.active_player
         hand = self.hands[pid]
@@ -261,46 +277,46 @@ class RoundState():
             hand.remove(start + 2)
         self.open.append(OpenMeld(pid, (pid - 1) % 4, CHII, start))
     
-    def action_pon(self, pid):
+    def action_pon(self, pid: int) -> None:
         tile = self.last_discard()
-        # twice
+        ## twice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.open.append(OpenMeld(pid, (self.active_player - 1) % 4, PON, tile))
         self.active_player = pid
     
-    def action_ankan(self):
+    def action_ankan(self) -> None:
         tile = self.drawn_tile
         pid = self.active_player
-        # thrice
+        ## thrice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.open.append(OpenMeld(pid, -1, ANKAN, tile))
         self.drawn_tile = -1
     
-    def action_minkan(self, pid):
+    def action_minkan(self, pid: int) -> None:
         tile = self.last_discard()
-        # thrice
+        ## thrice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.open.append(OpenMeld(pid, (self.active_player - 1) % 4, MINKAN, tile))
         self.active_player = pid
     
-    def action_shouminkan(self):
+    def action_shouminkan(self) -> None:
         for m in self.open:
             if m.owner_pid == self.active_player and m.tile == self.drawn_tile and m.type == PON:
                 m.type = SHOUMINKAN
                 self.drawn_tile = -1
                 return
     
-    def action_riichi(self):
+    def action_riichi(self) -> None:
         self.riichi[self.active_player] = self.turn
     
-    def action_ron(self):
-        self.round_end()
+    def action_ron(self, pidl: list[int]) -> None:
+        self.round_end(pidl)
     
-    def action_tsumo(self):
-        self.round_end()
+    def action_tsumo(self) -> None:
+        self.round_end([self.active_player])
     
