@@ -16,6 +16,7 @@ OMNames = {
 WNames = ("East", "South", "West", "North")
 TenhouStr = "mpsz"
 KokushiTiles = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
+INVALID_TILE = INVALID_PLAYER = INVALID_ROUND = -1
 
 def tilelist2tenhou(l: list[int], sort = True) -> str:
     l = sorted(l) if sort else l
