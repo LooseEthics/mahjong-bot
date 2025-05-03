@@ -178,7 +178,6 @@ class Shanten:
         
     
 def minimal_shanten_tuple(*shantens: Shanten) -> Shanten:
-    ## TODO
     ret = shantens[0]
     for t in shantens[1:]:
         if ret.shanten > t.shanten:
