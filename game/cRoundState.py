@@ -1,16 +1,21 @@
 
+import pickle
 from random import shuffle, randrange
+
 from common import *
 from cDiscard import Discard
 from cOpenMeld import OpenMeld
 from cShanten import Shanten
 
 class RoundState():
-    def __init__(self):
-        self.random_start_state()
+    def __init__(self, init_type: str = "random", **kwargs):
+        if init_type == "random":
+            self.random_start_state()
+        elif init_type == "load":
+            self.load(kwargs["fname"])
     
     def random_start_state(self):
-        self.turn = 0
+        self.turn = 1
         self.active_player = 0
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
@@ -24,6 +29,15 @@ class RoundState():
         self.game_running = True
         self.winner = []
     
+    def load(self, fname: str):
+        with open(fname, "rb") as f:
+            state = pickle.load(f)
+            self.__dict__.update(state)
+
+    def save(self, fname: str):
+        with open(fname, "wb") as f:
+            pickle.dump(self.__dict__, f)
+    
     def __repr__(self):
         s =  f"Turn: {self.turn}\n"
         s += f"Active player: {WNames[self.active_player]}\n"
@@ -31,7 +45,7 @@ class RoundState():
         s += f"Live wall: {tilelist2tenhou(self.live_wall, False)}\n"
         s += f"Player hands: \n"
         for i in range(4):
-            s += f"  {WNames[i].ljust(5)} - {tilelist2tenhou(self.hands[i]).ljust(20)} {self.shanten(i)}\n"
+            s += f"  {WNames[i].ljust(5)} - {tilelist2tenhou(self.hands[i]).ljust(20)}\n{10*' '}{self.shanten(i)}\n"
         s += f"Discards: {self.discard}\n"
         s += f"Open melds: {self.open}\n"
         s += f"Riichi: {self.riichi}\n"
@@ -46,12 +60,11 @@ class RoundState():
         return self.discard[-1].tile
         
     def player_can_pon(self, pid: int) -> bool:
-        return pid != self.active_player and self.hands[pid].count(ldt) >= 2
+        return pid != self.active_player and self.hands[pid].count(self.last_discard()) >= 2
     
     def who_can_pon(self) -> int:
-        ldt = self.discard[-1].tile
         for pid in range(4):
-            if player_can_pon(pid):
+            if self.player_can_pon(pid):
                 return pid
         return INVALID_PLAYER
     
@@ -104,20 +117,18 @@ class RoundState():
                 else:
                     # consider kans equivalent to pons for this
                     out += 3*[m.tile]
-        if self.active_player == pid and self.drawn_tile != INVALID_TILE:
-            out.append(self.drawn_tile)
         return sorted(out)
                 
     
     def shanten(self, pid: int, on_call: bool = False) -> Shanten:
         # find minimal shanten
-        hand = self.hands[pid].copy()
+        shanten_tile = INVALID_TILE
         if self.active_player == pid and self.drawn_tile != INVALID_TILE:
-            hand.append(self.drawn_tile)
+            shanten_tile = self.drawn_tile
         elif on_call:
-            hand.append(self.last_discard())
+            shanten_tile = self.last_discard()
         
-        return Shanten(hand = self.open_hand(pid))
+        return Shanten(hand = self.open_hand(pid), drawn_tile = shanten_tile)
 
     def round_end(self, pidl: list[int]) -> None:
         self.game_running = False
@@ -130,10 +141,21 @@ class RoundState():
             ## ryuukyoku
             self.round_end([])
     
+    def get_kan_owners(self) -> list[int]:
+        out = []
+        for m in self.open:
+            if m.type in (ANKAN, MINKAN, SHOUMINKAN):
+                out.append(m.owner_pid)
+        return out
+    
     def action_draw_kan(self) -> None:
         if len(self.dead_wall) > 10:
             self.drawn_tile = self.dead_wall.pop(10)
-            ## TODO check suukaikan
+            kan_owners = self.get_kan_owners
+            if len(kan_owners) >= 4:
+                if kan_owners[0] != kan_owners[1] or kan_owners[0] != kan_owners[2] or kan_owners[0] != kan_owners[3]:
+                    ## suukaikan
+                    self.round_end([])
         else:
             ## 5th kan draw illegal
             self.round_end([])
@@ -215,19 +237,55 @@ class RoundState():
     def action_tsumo(self) -> None:
         self.round_end([self.active_player])
     
-    def player_in_furiten(self, pid: int, shanten: int = None):
+    def player_in_furiten(self, pid: int, shanten: Shanten = None) -> bool:
         if shanten is None:
             shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
+        for t in shanten.waits:
+            if t in self.player_discard_list(pid):
+                return True
+        return False
         
+    def player_discard_list(self, pid: int) -> list[int]:
+        lst = []
+        for d in self.discard:
+            if d.owner_pid == pid and d.tile not in lst:
+                lst.append(d.tile)
+        return lst
     
     def get_valid_moves(self, pid: int) -> list[str]:
-        ## TODO
         valid_moves = []
+        shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
         if self.drawn_tile == INVALID_TILE:
             ## predraw
-            shanten = self.shanten(pid, on_call = True)
+            ldt = self.last_discard()
             if self.player_can_pon(pid):
-                if shanten == 0:
-                    valid_moves.append(f"p{self.last_discard()}")
-                valid_moves.append(f"p{self.last_discard()}")
+                valid_moves.append(f"p{onetile2tenhou(ldt)}") ## pon
+                if self.player_can_minkan(pid):
+                    valid_moves.append(f"m{onetile2tenhou(ldt)}") ## minkan
+            if pid == self.active_player and self.active_can_chii():
+                for t in self.possible_chii_starts():
+                    valid_moves.append(f"c{onetile2tenhou(t)}") ## chii
+            if shanten.shanten == TENPAI and not self.player_in_furiten(pid, shanten):
+                valid_moves.append(f"R{onetile2tenhou(ldt)}") ## ron
+            if valid_moves != []:
+                valid_moves.append("x") ## no call
+        else:
+            ## postdraw
+            dt = self.drawn_tile
+            if self.riichi[pid] == INVALID_TURN:
+                if self.shanten(pid).shanten == IISHANTEN:
+                    for t in shanten.riichi_discards():
+                        valid_moves.append(f"r{onetile2tenhou(t)}") ## riichi discard
+                for t in set(self.hands[pid]):
+                    valid_moves.append(f"d{onetile2tenhou(t)}") ## normal discards
+            if self.drawn_tile not in self.hands[pid] or self.riichi[pid] != INVALID_TURN:
+                valid_moves.append(f"d{onetile2tenhou(dt)}") ## drawn tile discard
+            if self.active_can_ankan():
+                valid_moves.append(f"a{onetile2tenhou(dt)}") ## ankan
+            if self.active_can_shouminkan():
+                valid_moves.append(f"s{onetile2tenhou(dt)}") ## shouminkan
+            if shanten.shanten == 0:
+                valid_moves.append(f"T{onetile2tenhou(dt)}") ## tsumo
+        return valid_moves
+                
     

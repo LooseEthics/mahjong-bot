@@ -13,12 +13,21 @@ OMNames = {
     MINKAN: "Minkan",
     SHOUMINKAN: "Shouminkan"
     }
+
 WNames = ("East", "South", "West", "North")
 TenhouStr = "mpsz"
 KokushiTiles = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
-INVALID_TILE = INVALID_PLAYER = INVALID_ROUND = -1
+INVALID_PLAYER = -1
+INVALID_ROUND = -1
+INVALID_TILE = -1
+INVALID_TURN = -1
+AGARI = -1
+TENPAI = 0
+IISHANTEN = 1
 
 def tilelist2tenhou(l: list[int], sort = True) -> str:
+    if len(l) == 0:
+        return "[]"
     l = sorted(l) if sort else l
     out_str = ""
     csuit = -1
