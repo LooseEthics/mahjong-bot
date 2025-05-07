@@ -3,9 +3,7 @@ from common import *
 
 class Discard():
     def __init__(self, turn, opid, tile):
-        self.turn = turn
-        self.owner_pid = opid
-        self.tile = tile
+        self.apply(turn, opid, tile)
     
     def __iter__(self):
         return iter((self.turn, self.owner_pid, self.tile))
@@ -16,3 +14,8 @@ class Discard():
     
     def __repr__(self):
         return self.__str__()
+
+    def apply(self, turn, opid, tile):
+        self.turn = turn
+        self.owner_pid = opid
+        self.tile = tile

@@ -11,9 +11,10 @@ g = GameState()
 g.init_round()
 
 def do_predraw():
-    if g.round.discard:
+    if g.round.turn > 1:
         p = g.round.who_can_pon()
         c = g.round.active_can_chii()
+        print(f"p {p}, c {c}")
         if (p != INVALID_PLAYER or c == True):
             print(f"p {p}, c {c}")
             calls_made = {i:'?' if (c == True and i == g.round.active_player or p == i) else 'x' for i in range(4)}
@@ -25,7 +26,7 @@ def do_predraw():
                 call_input = ""
                 while call_input not in valid_moves:
                     print("Valid moves:", g.round.get_valid_moves(i))
-                    call_input = input(f"player {i}: <action: p/c<tile>/m/x>\n")
+                    call_input = input(f"player {i}:")
                 calls_made[i] = call_input
             
             priority_call = ""
@@ -83,8 +84,10 @@ while g.round.game_running:
     print(g.round)
     
     if (g.round.predraw):
+        print("predraw")
         do_predraw()
     else:
+        print("postdraw")
         do_postdraw()
     g.round.predraw = not g.round.predraw
     

@@ -1,20 +1,12 @@
 
 # open meld types
+INVALID_MELD = -1
 ANKAN = 0
 PON = 1
 CHII = 2
 MINKAN = 3
 SHOUMINKAN = 4
 Kans = (ANKAN, MINKAN, SHOUMINKAN)
-OMNames = {
-    ANKAN: "Ankan",
-    PON: "Pon",
-    CHII: "Chii",
-    MINKAN: "Minkan",
-    SHOUMINKAN: "Shouminkan"
-    }
-
-WNames = ("East", "South", "West", "North")
 TenhouStr = "mpsz"
 KokushiTiles = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
 INVALID_PLAYER = -1
@@ -24,6 +16,22 @@ INVALID_TURN = -1
 AGARI = -1
 TENPAI = 0
 IISHANTEN = 1
+OMNames = {
+    INVALID_MELD: "Invalid Meld",
+    ANKAN: "Ankan",
+    PON: "Pon",
+    CHII: "Chii",
+    MINKAN: "Minkan",
+    SHOUMINKAN: "Shouminkan"
+    }
+
+WNames = {
+    INVALID_PLAYER: "Invalid Player",
+    0: "East", 
+    1: "South", 
+    2: "West", 
+    3: "North"
+    }
 
 def tilelist2tenhou(l: list[int], sort = True) -> str:
     if len(l) == 0:

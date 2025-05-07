@@ -20,8 +20,8 @@ class RoundState():
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
-        self.open = [] # OpenMeld instances
-        self.discard = [] # Discard instances
+        self.open = [OpenMeld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE) for _ in range(4*4)] # OpenMeld instances
+        self.discard = [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88)] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
         self.live_wall = self.tiles[66:]
@@ -48,8 +48,8 @@ class RoundState():
         s += f"Player hands: \n"
         for i in range(4):
             s += f"  {WNames[i].ljust(5)} - {tilelist2tenhou(self.hands[i]).ljust(20)}\n{10*' '}{self.shanten(i)}\n"
-        s += f"Discards: {self.discard}\n"
-        s += f"Open melds: {self.open}\n"
+        s += f"Discards: {[d for d in self.discard if d.turn != INVALID_TURN]}\n"
+        s += f"Open melds: {[m for m in self.open if m.type != INVALID_MELD]}\n"
         s += f"Riichi: {self.riichi}\n"
         s += f"Dora: {tilelist2tenhou(self.dead_wall[0:5], False)}\n"
         s += f"Ura:  {tilelist2tenhou(self.dead_wall[5:10], False)}\n"
@@ -59,11 +59,17 @@ class RoundState():
     def kan_cnt(self) -> int:
         return sum(1 for m in self.open if m.type in Kans)
     
-    def last_discard(self) -> int:
-        return self.discard[-1].tile
+    def next_open_index(self) -> int:
+        return sum(1 for m in self.open if m.type != INVALID_MELD)
+    
+    def last_discard(self) -> Discard:
+        return self.discard[self.turn - 2]
+    
+    def ldt(self) -> int:
+        return self.last_discard().tile
         
     def player_can_pon(self, pid: int) -> bool:
-        return pid != (self.active_player - 1) % 4 and self.hands[pid].count(self.last_discard()) >= 2
+        return pid != (self.active_player - 1) % 4 and self.hands[pid].count(self.ldt()) >= 2
     
     def who_can_pon(self) -> int:
         for pid in range(4):
@@ -72,11 +78,12 @@ class RoundState():
         return INVALID_PLAYER
     
     def possible_chii_starts(self) -> list[int]:
-        ldt = self.last_discard()
+        ldt = self.ldt()
         ldt_suit = ldt // 9
         ldt_val = ldt % 9
         hand = self.hands[self.active_player]
         out = []
+        print("possible chii starts", hand, ldt)
         if ldt_suit < 3:
             if (ldt_val >= 2 and ldt - 1 in hand and ldt - 2 in hand):
                 out.append(ldt - 2)
@@ -84,15 +91,14 @@ class RoundState():
                 out.append(ldt - 1)
             if (ldt_val <= 6 and ldt + 1 in hand and ldt + 2 in hand):
                 out.append(ldt)
+        print(out)
         return out
     
-    def active_can_chii(self) -> int:
-        if self.possible_chii_starts() != []:
-            return self.active_player
-        return INVALID_PLAYER
+    def active_can_chii(self) -> bool:
+        return self.possible_chii_starts() != []
     
     def player_can_minkan(self, pid: int) -> bool:
-        ldt = self.last_discard()
+        ldt = self.ldt()
         return self.kan_cnt() < 4 and pid != self.active_player and self.hands[pid].count(ldt) == 3
     
     def who_can_minkan(self) -> int:
@@ -135,7 +141,7 @@ class RoundState():
         if self.active_player == pid and self.drawn_tile != INVALID_TILE:
             shanten_tile = self.drawn_tile
         elif on_call:
-            shanten_tile = self.last_discard()
+            shanten_tile = self.ldt()
         
         return Shanten(hand = self.open_hand(pid), drawn_tile = shanten_tile)
 
@@ -160,7 +166,7 @@ class RoundState():
     
     def action_draw_kan(self) -> None:
         if len(self.dead_wall) > 10:
-            self.drawn_tile = self.dead_wall.pop(10)
+            self.drawn_tile = self.dead_wall[10 + self.kan_cnt()]
             kan_owners = self.get_kan_owners
             if len(kan_owners) >= 4:
                 if kan_owners[0] != kan_owners[1] or kan_owners[0] != kan_owners[2] or kan_owners[0] != kan_owners[3]:
@@ -180,7 +186,7 @@ class RoundState():
             print(self.hands[self.active_player], tile)
             return
         
-        self.discard.append(Discard(self.turn, self.active_player, tile))
+        self.discard[self.turn - 1].apply(self.turn, self.active_player, tile)
         if self.trigger_suufon_renda():
             self.round_end([], "Suufon Renda")
         self.drawn_tile = INVALID_TILE
@@ -188,14 +194,14 @@ class RoundState():
         self.turn += 1
     
     def trigger_suufon_renda(self):
-        return self.turn == 4 and self.discard[0].tile in range(28, 32) and
-            self.discard[0].tile == self.discard[1].tile and
-            self.discard[0].tile == self.discard[2].tile and
+        return self.turn == 4 and self.discard[0].tile in range(28, 32) and \
+            self.discard[0].tile == self.discard[1].tile and \
+            self.discard[0].tile == self.discard[2].tile and \
             self.discard[0].tile == self.discard[3].tile
     
     def action_chii(self, start: int) -> None:
         ## sequence starting tile
-        tile = self.last_discard()
+        tile = self.ldt()
         pid = self.active_player
         hand = self.hands[pid]
         if start == tile:
@@ -207,14 +213,14 @@ class RoundState():
         else:
             hand.remove(start)
             hand.remove(start + 1)
-        self.open.append(OpenMeld(pid, (pid - 1) % 4, CHII, start))
+        self.open[self.next_open_index()].apply(pid, (pid - 1) % 4, CHII, start)
     
     def action_pon(self, pid: int) -> None:
-        tile = self.last_discard()
+        tile = self.ldt()
         ## twice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open.append(OpenMeld(pid, (self.active_player - 1) % 4, PON, tile))
+        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, PON, tile)
         self.active_player = pid
     
     def action_ankan(self) -> None:
@@ -224,16 +230,16 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open.append(OpenMeld(pid, INVALID_PLAYER, ANKAN, tile))
+        self.open[self.next_open_index()].apply(pid, INVALID_PLAYER, ANKAN, tile)
         self.drawn_tile = INVALID_TILE
     
     def action_minkan(self, pid: int) -> None:
-        tile = self.last_discard()
+        tile = self.ldt()
         ## thrice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open.append(OpenMeld(pid, (self.active_player - 1) % 4, MINKAN, tile))
+        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, MINKAN, tile)
         self.active_player = pid
     
     def action_shouminkan(self) -> None:
@@ -251,7 +257,7 @@ class RoundState():
         self.round_end([], "Suucha Riichi")
     
     def action_ron(self, pidl: list[int]) -> None:
-        self.round_end(pidl, f"Ron {pidl} on {self.discard[-1].owner_pid}")
+        self.round_end(pidl, f"Ron {pidl} on {self.last_discard.owner_pid}")
     
     def action_tsumo(self) -> None:
         self.round_end([self.active_player], f"Tsumo {self.active_player}")
@@ -274,18 +280,20 @@ class RoundState():
     def get_valid_moves(self, pid: int) -> list[str]:
         valid_moves = []
         shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
+        print("get valid moves called", self.predraw)
+        ldt = self.ldt()
         if self.predraw:
             ## predraw
-            ldt = self.last_discard()
             if self.player_can_pon(pid):
-                valid_moves.append(f"p{onetile2tenhou(ldt)}") ## pon
+                valid_moves.append(f"p") ## pon
                 if self.player_can_minkan(pid):
-                    valid_moves.append(f"m{onetile2tenhou(ldt)}") ## minkan
+                    valid_moves.append(f"m") ## minkan
+            print("predraw", pid, self.active_player, self.active_can_chii())
             if pid == self.active_player and self.active_can_chii():
                 for t in self.possible_chii_starts():
                     valid_moves.append(f"c{onetile2tenhou(t)}") ## chii
             if shanten.shanten == TENPAI and not self.player_in_furiten(pid, shanten):
-                valid_moves.append(f"R{onetile2tenhou(ldt)}") ## ron
+                valid_moves.append(f"R") ## ron
             if valid_moves != []:
                 valid_moves.append("x") ## no call
         else:
@@ -299,28 +307,30 @@ class RoundState():
                     valid_moves.append(f"d{onetile2tenhou(t)}") ## normal discards
             if self.drawn_tile not in self.hands[pid] or self.riichi[pid] != INVALID_TURN:
                 valid_moves.append(f"d{onetile2tenhou(dt)}") ## drawn tile discard
+            last_open = self.open[self.next_open_index() - 1] if self.next_open_index() > 0 else None
+            if ldt in self.hands[pid] and last_open is not None:
+                ## can't discard called tile
+                if last_open.tile_in_meld(ldt):
+                    valid_moves.remove(f"d{onetile2tenhou(ldt)}")
             if self.active_can_ankan():
-                valid_moves.append(f"a{onetile2tenhou(dt)}") ## ankan
+                valid_moves.append(f"a") ## ankan
             if self.active_can_shouminkan():
-                valid_moves.append(f"s{onetile2tenhou(dt)}") ## shouminkan
+                valid_moves.append(f"s") ## shouminkan
             if shanten.shanten == 0:
-                valid_moves.append(f"T{onetile2tenhou(dt)}") ## tsumo
+                valid_moves.append(f"T") ## tsumo
         return valid_moves
     
     def do_action(self, action: str = "x"):
         if not action:
             return
         action_type = action[0]
-        tile = tenhou2onetile(action[1:])
+        tail = action[1:]
+        tile = tenhou2onetile(tail)
         if action_type == "x":
             return
-        elif action_type == "d":
-            if tile == INVALID_TILE:
-                self.action_discard(self.drawn_tile)
-            else:
-                self.action_discard(tile)
-        elif action_type == "r":
-            self.action_riichi()
+        elif action_type in ["d", "r"]:
+            if action_type == "r":
+                self.action_riichi()
             if tile == INVALID_TILE:
                 self.action_discard(self.drawn_tile)
             else:
@@ -331,10 +341,13 @@ class RoundState():
             self.action_pon(self.who_can_pon())
         elif action_type == "a":
             self.action_ankan()
+            self.action_draw_kan()
         elif action_type == "s":
             self.action_shouminkan()
+            self.action_draw_kan()
         elif action_type == "m":
             self.action_minkan(self.who_can_minkan())
+            self.action_draw_kan()
         elif action_type == "T":
             self.action_tsumo()
         elif action_type == "R":
