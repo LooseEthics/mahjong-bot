@@ -24,56 +24,68 @@ def do_predraw():
                 valid_moves = g.round.get_valid_moves(i)
                 call_input = ""
                 while call_input not in valid_moves:
-                    print(g.round.get_valid_moves(i))
+                    print("Valid moves:", g.round.get_valid_moves(i))
                     call_input = input(f"player {i}: <action: p/c<tile>/m/x>\n")
                 calls_made[i] = call_input
+            
+            priority_call = ""
+            ron_calls = []
+            
+            ## ron
             for pid, call in calls_made.items():
-                if call[0] == 'p':
-                    g.round.action_pon(pid)
-                    return
-                elif call[0] == 'm':
-                    g.round.action_minkan(pid)
-                    g.round.action_draw_kan()
-                    return
-            for pid, call in calls_made.items():
-                if call[0] == 'c':
-                    g.round.action_chii(tenhou2onetile(call[1:]))
-                    return
-            g.round.action_draw()
+                if call[0] == 'R':
+                    ron_calls.append(pid)
+            if len(ron_calls) > 0:
+                priority_call = "R"
+                for pid in ron_calls:
+                    priority_call += f"{pid}"
+            
+            ## pon, minkan
+            if not priority_call:
+                for pid, call in calls_made.items():
+                    if call[0] == 'p' or call[0] == 'm':
+                        priority_call = call
+            
+            ## chii
+            if not priority_call:
+                for pid, call in calls_made.items():
+                    if call[0] == 'c':
+                        priority_call = call
+            
+            g.round.do_action(priority_call)
+            
         else:
             print("No calls possible")
             g.round.action_draw()
                 
     else:
+        if g.round.active_can_kyuushuu_kyuuhai():
+            valid_moves = ["kk", "x"]
+            print("Valid moves:", valid_moves)
+            kk_input = ""
+            while kk_input not in valid_moves:
+                kk_input = input()
+            if kk_input == "kk":
+                g.round.action_kyuushuu_kyuuhai()
+                return
         g.round.action_draw()
 
 def do_postdraw():
     input_str = ""
     valid_moves = g.round.get_valid_moves(g.round.active_player)
-    ## TODO print possible discards/calls
-    print(valid_moves)
+    print("Valid moves:", valid_moves)
     while input_str not in valid_moves:
         input_str = input()
-    if input_str == 'q':
-        game_end = True
-        return
-    
-    action_key = input_str[0]
-    tile = input_str[1:]
-    print(action_key, tile)
-    if input_str[0] == 'd':
-        if len(input_str) == 1:
-            g.round.action_discard(g.round.drawn_tile)
-        else:
-            g.round.action_discard(tenhou2onetile(tile))
+    g.round.do_action(input_str)
 
 while g.round.game_running:
     
     print(g.round)
     
-    if (g.round.drawn_tile == -1):
+    if (g.round.predraw):
         do_predraw()
     else:
         do_postdraw()
+    g.round.predraw = not g.round.predraw
     
     

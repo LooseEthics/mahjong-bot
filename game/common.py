@@ -61,7 +61,10 @@ def tenhou2tilelist(s: str) -> list[int]:
 
 def tenhou2onetile(tile: str) -> int:
     print("called tenhou2onetile with", tile)
-    return TenhouStr.index(tile[1]) * 9 + int(tile[0]) - 1
+    try:
+        return TenhouStr.index(tile[1]) * 9 + int(tile[0]) - 1
+    except:
+        return INVALID_TILE
 
 def lstsub(lst1: list, lst2: list) -> list:
     ## difference of lists
