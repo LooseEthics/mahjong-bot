@@ -25,6 +25,7 @@ class RoundState():
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
         self.live_wall = self.tiles[66:]
+        self.live_wall_index = 0
         self.drawn_tile = INVALID_TILE
         self.game_running = True
         self.winner = []
@@ -151,8 +152,9 @@ class RoundState():
         self.game_state_str = state_str
     
     def action_draw(self) -> None:
-        if self.live_wall:
-            self.drawn_tile = self.live_wall.pop(0)
+        if self.live_wall_index < 70:
+            self.drawn_tile = self.live_wall[self.live_wall_index]
+            self.live_wall_index += 1
         else:
             ## ryuukyoku
             self.round_end([], "Ryuukyoku")
@@ -280,7 +282,7 @@ class RoundState():
     def get_valid_moves(self, pid: int) -> list[str]:
         valid_moves = []
         shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
-        print("get valid moves called", self.predraw)
+        #print("get valid moves called", self.predraw)
         ldt = self.ldt()
         if self.predraw:
             ## predraw
@@ -288,7 +290,7 @@ class RoundState():
                 valid_moves.append(f"p") ## pon
                 if self.player_can_minkan(pid):
                     valid_moves.append(f"m") ## minkan
-            print("predraw", pid, self.active_player, self.active_can_chii())
+            #print("predraw", pid, self.active_player, self.active_can_chii())
             if pid == self.active_player and self.active_can_chii():
                 for t in self.possible_chii_starts():
                     valid_moves.append(f"c{onetile2tenhou(t)}") ## chii
@@ -355,3 +357,14 @@ class RoundState():
             self.action_ron(ron_list)
         elif action == "kk":
             self.action_kyuushuu_kyuuhai()
+    
+    def get_value_and_ended(self, pid: int):
+        if not self.game_running:
+            if pid in self.winner:
+                return 1, True
+            elif len(self.winner) > 0:
+                return -1, True
+            else:
+                return 0, True
+        return 0, False
+            
