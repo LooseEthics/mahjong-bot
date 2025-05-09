@@ -107,7 +107,7 @@ class Shanten:
         rd = []
         
         # generate all valid groupings
-        for grouping in self._generate_groupings(hand):
+        for grouping in _generate_groupings(hand):
             complete_melds = 0
             taatsu = 0
             remaining_tiles = []
@@ -185,43 +185,43 @@ class Shanten:
         
         return Shanten(shanten = min_shanten, waits = waits, riichi_discards = rd)
 
-    def _generate_groupings(self, tiles: list[int]) -> list[list[list[int]]]:
-        # generate all possible tile groupings for shanten calc
-        if not tiles:
-            return [[]]
-        
-        groupings = []
-        
-        # Try forming triplets
-        for i in range(len(tiles)):
-            if i + 2 < len(tiles) and tiles[i] == tiles[i + 1] == tiles[i + 2]:
-                remaining = tiles[:i] + tiles[i+3:]
-                for group in self._generate_groupings(remaining):
-                    groupings.append([[tiles[i]]*3] + group)
-        
-        # Try forming sequences (only for number tiles)
-        unique_tiles = sorted(set(t for t in tiles if t < 27))  # Exclude honors
-        for t in unique_tiles:
-            if t + 1 in tiles and t + 2 in tiles and t//9 == (t + 1)//9 == (t + 2)//9:
-                remaining = tiles.copy()
-                remaining.remove(t)
-                remaining.remove(t + 1)
-                remaining.remove(t + 2)
-                for group in self._generate_groupings(remaining):
-                    groupings.append([[t, t+1, t+2]] + group)
-        
-        # Try pairs
-        for i in range(len(tiles)):
-            if i + 1 < len(tiles) and tiles[i] == tiles[i + 1]:
-                remaining = tiles[:i] + tiles[i + 2:]
-                for group in self._generate_groupings(remaining):
-                    groupings.append([[tiles[i]]*2] + group)
-        
-        # Single tiles
-        if not groupings:
-            groupings = [[[t]] for t in tiles]
-        
-        return groupings
+def _generate_groupings(tiles: list[int]) -> list[list[list[int]]]:
+    # generate all possible tile groupings for shanten calc
+    if not tiles:
+        return [[]]
+    
+    groupings = []
+    
+    # Try forming triplets
+    for i in range(len(tiles)):
+        if i + 2 < len(tiles) and tiles[i] == tiles[i + 1] == tiles[i + 2]:
+            remaining = tiles[:i] + tiles[i+3:]
+            for group in _generate_groupings(remaining):
+                groupings.append([[tiles[i]]*3] + group)
+    
+    # Try forming sequences (only for number tiles)
+    unique_tiles = sorted(set(t for t in tiles if t < 27))  # Exclude honors
+    for t in unique_tiles:
+        if t + 1 in tiles and t + 2 in tiles and t//9 == (t + 1)//9 == (t + 2)//9:
+            remaining = tiles.copy()
+            remaining.remove(t)
+            remaining.remove(t + 1)
+            remaining.remove(t + 2)
+            for group in _generate_groupings(remaining):
+                groupings.append([[t, t+1, t+2]] + group)
+    
+    # Try pairs
+    for i in range(len(tiles)):
+        if i + 1 < len(tiles) and tiles[i] == tiles[i + 1]:
+            remaining = tiles[:i] + tiles[i + 2:]
+            for group in _generate_groupings(remaining):
+                groupings.append([[tiles[i]]*2] + group)
+    
+    # Single tiles
+    if not groupings:
+        groupings = [[[t]] for t in tiles]
+    
+    return groupings
         
     
 def minimal_shanten_tuple(*shantens: Shanten) -> Shanten:

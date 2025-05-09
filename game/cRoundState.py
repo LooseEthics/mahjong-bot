@@ -20,7 +20,7 @@ class RoundState():
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
-        self.open = [OpenMeld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE) for _ in range(4*4)] # OpenMeld instances
+        self.open = [OpenMeld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4)] # OpenMeld instances
         self.discard = [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88)] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
@@ -31,6 +31,7 @@ class RoundState():
         self.winner = []
         self.game_state_str = "Ongoing"
         self.predraw = True
+        self.agari = INVALID_TILE
     
     def load(self, fname: str):
         with open(fname, "rb") as f:
@@ -215,14 +216,14 @@ class RoundState():
         else:
             hand.remove(start)
             hand.remove(start + 1)
-        self.open[self.next_open_index()].apply(pid, (pid - 1) % 4, CHII, start)
+        self.open[self.next_open_index()].apply(pid, (pid - 1) % 4, CHII, start, self.turn)
     
     def action_pon(self, pid: int) -> None:
         tile = self.ldt()
         ## twice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, PON, tile)
+        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, PON, tile, self.turn)
         self.active_player = pid
     
     def action_ankan(self) -> None:
@@ -232,7 +233,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, INVALID_PLAYER, ANKAN, tile)
+        self.open[self.next_open_index()].apply(pid, INVALID_PLAYER, ANKAN, tile, self.turn)
         self.drawn_tile = INVALID_TILE
     
     def action_minkan(self, pid: int) -> None:
@@ -241,7 +242,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, MINKAN, tile)
+        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, MINKAN, tile, self.turn)
         self.active_player = pid
     
     def action_shouminkan(self) -> None:
@@ -260,9 +261,11 @@ class RoundState():
     
     def action_ron(self, pidl: list[int]) -> None:
         self.round_end(pidl, f"Ron {pidl} on {self.last_discard.owner_pid}")
+        self.agari = self.ldt()
     
     def action_tsumo(self) -> None:
         self.round_end([self.active_player], f"Tsumo {self.active_player}")
+        self.agari = self.drawn_tile
     
     def player_in_furiten(self, pid: int, shanten: Shanten = None) -> bool:
         if shanten is None:
@@ -367,4 +370,162 @@ class RoundState():
             else:
                 return 0, True
         return 0, False
-            
+    
+    def player_open_melds(self, pid: int) -> list[OpenMeld]:
+        return [m for m in self.open if m.owner_pid == pid]
+    
+    def player_hand_is_closed(self, pid: int) -> bool:
+        return len([m for m in self.player_open_melds(pid) if m.type != ANKAN]) == 0
+    
+    def get_fu(self, pid: int) -> int:
+        fu = 20
+        final_hand = self.hands[pid] + [self.agari]
+        final_hand_set = set(final_hand)
+        
+        ## chiitoi
+        if self.player_has_chiitoi(pid):
+            return 25
+        
+        shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
+        ## triple/kan fu
+        for m in self.player_open_melds(pid):
+            if m.type == PON:
+                if m.tile in KokushiTiles:
+                    fu += 4
+                else:
+                    fu += 2
+            elif m.type == ANKAN:
+                if m.tile in KokushiTiles:
+                    fu += 32
+                else:
+                    fu += 16
+            elif m.type in Kans:
+                if m.tile in KokushiTiles:
+                    fu += 16
+                else:
+                    fu += 8
+        for t in final_hand_set:
+            if final_hand.count(t) >= 3:
+                if m.tile in KokushiTiles:
+                    fu += 8
+                else:
+                    fu += 4
+        
+        ## wait fu
+        ## only simple waits get fu I think
+        if len(shanten.waits) == 1:
+            fu += 2
+        
+        ## yakuhai pair
+        for t in final_hand_set:
+            if t >= 27 and final_hand.count(t) == 2:
+                fu += 2
+        
+        ## open pinfu
+        if not self.player_hand_is_closed(pid) and fu == 20:
+            fu += 2
+        
+        ## rounding up to 10
+        fu = fu - (fu % 10) + (fu % 10 > 0)*10
+        
+        return fu
+    
+    
+    def player_has_chiitoi(self, pid: int) -> bool:
+        hand = self.hands[pid] + [self.agari]
+        for t in set(hand):
+            if hand.count(t) != 2:
+                return False
+        return True
+    
+    def player_has_iipeikou(self, pid: int) -> bool:
+        ## TODO
+        return False
+    
+    def player_has_ryanpeikou(self, pid: int) -> bool:
+        if self.player_has_chiitoi(pid):
+            seq_starts = []
+            hand = self.hands[pid]
+            for t in set(hand):
+                if t + 1 in hand and t + 2 in hand and t % 9 < 7 and t // 9 < 3:
+                    seq_starts.append(t)
+            if len(seq_starts) == 2:
+                return True
+        elif False:
+            ## TODO overlapping sequences here
+            return True
+        return False
+    
+    def player_has_tanyao(self, pid: int) -> bool:
+        for t in self.hands[pid] + [self.agari]:
+            if t in KokushiTiles:
+                return False
+        return True
+    
+    def get_score(self, pid: int) -> int:
+        han = 0
+        fu = self.get_fu(pid)
+        
+        if self.riichi[pid] != INVALID_TURN:
+            han += 1
+            if self.riichi[pid] <= 4 and (open_melds[0].turn == INVALID_TURN or open_melds[0].turn > 4):
+                ## double riichi
+                han += 1
+            if self.riichi[pid] >= self.turn - 4:
+                ## ippatsu
+                han += 1
+        if self.live_wall_index == 70:
+            if self.drawn_tile != INVALID_TILE:
+                ## haitei
+                han += 1
+            else:
+                ## houtei
+                han += 1
+        
+        if self.player_hand_is_closed(pid):
+            if self.drawn_tile != INVALID_TILE:
+                ## menzen tsumo
+                han += 1
+            if fu == 20:
+                ## pinfu
+                han += 1
+            if self.player_has_chiitoi(pid):
+                han += 2
+            elif self.player_has_iipeikou(pid):
+                han += 1
+            elif self.player_has_ryanpeikou(pid):
+                han += 3
+        
+        ## rinshan
+        ## chankan
+        if self.player_has_tanyao(pid):
+            han += 1
+        
+        ## yakuhai
+        ## chantaiyao
+        ## sanshoku doujun
+        ## ittsuu
+        ## toitoi
+        ## sanankou
+        ## sanshoku doukou
+        ## sankantsu
+        ## honroutou
+        ## shousangen
+        ## honitsu
+        ## junchan
+        ## chinitsu
+        
+        ## kokushi musou
+        ## daisangen
+        ## suuankou
+        ## shousuushi
+        ## daisuushi
+        ## tsuuiisou
+        ## ryuuiisoou
+        ## chinroutou
+        ## chuurenpou
+        ## suukantsu
+        ## tenhou 
+        ## chiihou
+        
+        return 0
