@@ -6,20 +6,39 @@ PON = 1
 CHII = 2
 MINKAN = 3
 SHOUMINKAN = 4
+PAIR = 5
 Kans = (ANKAN, MINKAN, SHOUMINKAN)
+
 TenhouStr = "mpsz"
-KokushiTiles = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
+JIHAI_OFFSET = 27
+TON = 27
+NAN = 28
+SHAA = 29
+PEI = 30
+Kazehai = (TON, NAN, SHAA, PEI)
+HAKU = 31
+HATSU = 32
+CHUN = 33
+Sangenpai = (HAKU, HATSU, CHUN)
+Jihai = tuple(list(Kazehai) + list(Sangenpai))
+Terminals = (0, 8, 9, 17, 18, 26)
+KokushiTiles = tuple(list(Jihai) + list(Terminals))
+RyuuiisouTiles = (10, 11, 12, 14, 16, HATSU) ## s23468z6
+
 INVALID_PLAYER = -1
 INVALID_ROUND = -1
 INVALID_TILE = -1
 INVALID_TURN = -1
+
 AGARI = -1
 TENPAI = 0
 IISHANTEN = 1
+
 GS_ONGOING = 0
 GS_RYUUKYOKU = 1
 GS_RON = 2
 GS_TSUMO = 3
+
 OMNames = {
     INVALID_MELD: "Invalid Meld",
     ANKAN: "Ankan",
@@ -31,10 +50,10 @@ OMNames = {
 
 WNames = {
     INVALID_PLAYER: "Invalid Player",
-    0: "East", 
-    1: "South", 
-    2: "West", 
-    3: "North"
+    TON - JIHAI_OFFSET: "East", 
+    NAN - JIHAI_OFFSET: "South", 
+    SHAA - JIHAI_OFFSET: "West", 
+    PEI - JIHAI_OFFSET: "North"
     }
 
 def tilelist2tenhou(l: list[int], sort = True) -> str:

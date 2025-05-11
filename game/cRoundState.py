@@ -400,6 +400,14 @@ class RoundState():
     
     def get_visible_state(self, pid: int):
         return VisibleState(pid, self.drawn_tile, self.hands[pid], self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
+            
+    def complete_hand_split(self, pid: int) -> list[Meld] | None:
+        ## only call this for winning hands
+        hand = self.hands[pid] + [agari]
+        split = recursive_hand_split(hand)
+        split_melds = [Meld(pid, INVALID_PLAYER, PON if m.count(m[0]) == 3 else PAIR if m.count(m[0]) == 2 else CHII, m[0], INVALID_TURN) for m in split]
+        hand_melds = self.player_open_melds(pid) + split_melds
+        return hand_melds
     
     
     
@@ -466,23 +474,20 @@ class RoundState():
                 return False
         return True
     
-    def player_has_iipeikou(self, pid: int) -> bool:
-        ## TODO
+    def player_has_iipeikou(self, hand_melds: list[Meld]) -> bool:
+        shuntsu_starts = [m.tile for m in hand_melds if m.type == CHII]
+        for tile in set(shuntsu_starts):
+            if shuntsu_starts.count(tile) == 2:
+                return True
         return False
     
-    def player_has_ryanpeikou(self, pid: int) -> bool:
-        if self.player_has_chiitoi(pid):
-            seq_starts = []
-            hand = self.hands[pid]
-            for t in set(hand):
-                if t + 1 in hand and t + 2 in hand and t % 9 < 7 and t // 9 < 3:
-                    seq_starts.append(t)
-            if len(seq_starts) == 2:
-                return True
-        elif False:
-            ## TODO overlapping sequences here
-            return True
-        return False
+    def player_has_ryanpeikou(self, hand_melds: list[Meld]) -> bool:
+        shuntsu_starts = [m.tile for m in hand_melds if m.type == CHII]
+        double_shun = 0
+        for tile in set(shuntsu_starts):
+            if shuntsu_starts.count(tile) == 2:
+                double_shun += 1
+        return double_shun == 2
     
     def player_has_tanyao(self, pid: int) -> bool:
         for t in self.hands[pid] + [self.agari]:
@@ -490,9 +495,117 @@ class RoundState():
                 return False
         return True
     
+    def player_has_kokushi(self, pid: int) -> bool:
+        for t in KokushiTiles:
+            if t not in self.hands[pid] + [self.agari]:
+                return False
+        return True
+    
+    def hand_is_daisangen(self, hand: list[int]) -> bool:
+        open_hand = self.open_hand(pid)
+        if open_hand.count(HAKU) == 3 and open_hand.count(HATSU) == 3 and open_hand.count(CHUN) == 3:
+            return True
+        else:
+            return False
+    
+    def player_has_suuankou(self, pid: int):
+        cnts = [self.hands[pid].count(t) for t in set(self.hands[pid])]
+        if cnts.count(3) == 4:
+            return True
+        else:
+            return False
+    
+    def hand_is_suushiihou(self, hand: list[int]) -> bool:
+        ## both shousuushii and daisuushii
+        return TON in hand and NAN in hand and SHAA in hand and PEI in hand
+    
+    def hand_is_tsuuiisou(self, hand: list[int]) -> bool:
+        for t in hand:
+            if t < JIHAI_OFFSET:
+                return False
+        return True
+    
+    def hand_is_ryuuiisou(self, hand: list[int]) -> bool:
+        for t in hand:
+            if t not in RyuuiisouTiles:
+                return False
+        return True
+    
+    def hand_is_chinroutou(self, hand: list[int]) -> bool:
+        for t in hand:
+            if t not in Terminals:
+                return False
+        return True
+    
+    def player_has_chuurenpou(self, pid: int) -> bool:
+        hand = self.hands[pid] + [agari]
+        suit = hand[0] // 9
+        if hand[-1] // 9 != suit:
+            return False
+        if hand.count(hand[0]) == 3 and hand.count(hand[-1]) == 3:
+            for t in range(hand[0] + 1, hand[-1]):
+                if t not in hand:
+                    return False
+            return True
+        else:
+            return False
+    
+    def player_has_suukantsu(self, open_melds: list[Meld]) -> bool:
+        if len(open_melds) == 4:
+            for m in open_melds:
+                if m.type not in Kans:
+                    return False
+            return True
+        else:
+            return False
+    
+    def player_has_tenhou_chiihou(self) -> bool:
+        ## win on first draw, no calls
+        return self.turn <= 4 and self.open[0].type == INVALID_MELD and self.drawn_tile != INVALID_TILE
+    
+    def player_has_rinshan(self, pid: int) -> bool:
+        last_open = self.open[-1]
+        return last_open.owner_pid == pid and last_open.turn == turn and last_open.type in Kans
+    
+    def player_yakuhai_cnt(self, hand_melds: list[Meld]) -> int:
+        pid = hand_melds[0].owner_pid
+        koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
+        cnt = 0
+        for t in koukan:
+            if t in Sangenpai or (t in Kazehai and (t - JIHAI_OFFSET == pid or t - JIHAI_OFFSET == self.round_wind)):
+                cnt += 1
+        return cnt
+    
+    def player_has_chanta(self, hand_melds: list[Meld]) -> bool:
+        for m in hand_melds:
+            if m.tile in KokushiTiles or (m.type == CHII and m.tile % 9 == 6):
+                pass
+            else:
+                return False
+        return True
+    
     def get_score(self, pid: int) -> int:
+        
+        open_hand = self.open_hand(pid) + [self.agari]
+        open_melds = self.player_open_melds(pid)
+        
+        ## yakuman
+        if self.player_has_kokushi(pid) or \
+            self.hand_is_daisangen(open_hand) or \
+            self.player_has_suuankou(pid) or \
+            self.hand_is_suushiihou(open_hand) or \
+            self.hand_is_tsuuiisou(open_hand) or \
+            self.hand_is_ryuuiisou(open_hand) or \
+            self.hand_is_chinroutou(open_hand) or \
+            self.player_has_chuurenpou(pid) or \
+            self.player_has_suukantsu(open_melds) or \
+            self.player_has_tenhou_chiihou():
+                return 8000 
+        
         han = 0
         fu = self.get_fu(pid)
+        hand_melds = self.complete_hand_split(pid)
+        has_chiitoi = False
         
         if self.riichi[pid] != INVALID_TURN:
             han += 1
@@ -517,20 +630,24 @@ class RoundState():
             if fu == 20:
                 ## pinfu
                 han += 1
-            if self.player_has_chiitoi(pid):
-                han += 2
-            elif self.player_has_iipeikou(pid):
+            has_chiitoi = self.player_has_chiitoi(pid)
+            if has_chiitoi:
+                if self.player_has_ryanpeikou(hand_melds):
+                    han += 3
+                    has_chiitoi = False
+                else:
+                    han += 2
+            elif self.player_has_iipeikou(hand_melds):
                 han += 1
-            elif self.player_has_ryanpeikou(pid):
-                han += 3
         
-        ## rinshan
-        ## chankan
+        if self.player_has_rinshan(pid):
+            han += 1
+        ## TODO chankan
         if self.player_has_tanyao(pid):
             han += 1
-        
-        ## yakuhai
-        ## chantaiyao
+        han += self.player_yakuhai_cnt(hand_melds)
+        if self.player_has_chanta(hand_melds):
+            han += 2
         ## sanshoku doujun
         ## ittsuu
         ## toitoi
@@ -543,17 +660,49 @@ class RoundState():
         ## junchan
         ## chinitsu
         
-        ## kokushi musou
-        ## daisangen
-        ## suuankou
-        ## shousuushi
-        ## daisuushi
-        ## tsuuiisou
-        ## ryuuiisoou
-        ## chinroutou
-        ## chuurenpou
-        ## suukantsu
-        ## tenhou 
-        ## chiihou
-        
         return 0
+
+
+    
+def recursive_hand_split(hand: list[int]) -> list[list[int]] | None:
+    first_tile = hand[0]
+    sub_split = None
+    if hand.count(first_tile) >= 3:
+        ## shuntsu
+        sub_hand = hand[:]
+        meld = [first_tile, first_tile, first_tile]
+        sub_hand.remove(first_tile)
+        sub_hand.remove(first_tile)
+        sub_hand.remove(first_tile)
+        if len(sub_hand) > 0:
+            sub_split = recursive_hand_split(sub_hand)
+            if sub_split is not None:
+                return [meld] + sub_split
+        else:
+            return [meld]
+    if hand.count(first_tile) >= 2:
+        ## pair
+        sub_hand = hand[:]
+        meld = [first_tile, first_tile]
+        sub_hand.remove(first_tile)
+        sub_hand.remove(first_tile)
+        if len(sub_hand) > 0:
+            sub_split = recursive_hand_split(sub_hand)
+            if sub_split is not None:
+                return [meld] + sub_split
+        else:
+            return [meld]
+    if first_tile + 1 in hand and first_tile + 2 in hand:
+        ## koutsu
+        sub_hand = hand[:]
+        meld = [first_tile, first_tile + 1, first_tile + 2]
+        sub_hand.remove(first_tile)
+        sub_hand.remove(first_tile + 1)
+        sub_hand.remove(first_tile + 2)
+        if len(sub_hand) > 0:
+            sub_split = recursive_hand_split(sub_hand)
+            if sub_split is not None:
+                return [meld] + sub_split
+        else:
+            return [meld]
+    return None
