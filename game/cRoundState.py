@@ -34,6 +34,7 @@ class RoundState():
         self.predraw = True
         self.agari = INVALID_TILE
         self.round_wind = randint(0, 3)
+        self.score_change = [0, 0, 0, 0]
     
     def load(self, fname: str):
         with open(fname, "rb") as f:
@@ -153,6 +154,42 @@ class RoundState():
         self.winner = pidl
         self.game_state = end_state
         self.game_state_str = state_str
+        if end_state == GS_RYUUKYOKU:
+            ## TODO nagashi mangan
+            shanten_lst = [self.shanten(pid, True) for pid in range(4)]
+            tenpai = []
+            for pid in range(4):
+                if shanten_lst[pid] <= 0:
+                    tenpai.append(pid)
+            tenpai_cnt = len(tenpai)
+            if tenpai_cnt == 0 or tenpai_cnt == 4:
+                return
+            elif tenpai_cnt == 1:
+                self.score_change = [3000 if pid in tenpai else -1000 for pid in range(4)]
+            elif tenpai_cnt == 2:
+                self.score_change = [1500 if pid in tenpai else -1500 for pid in range(4)]
+            elif tenpai_cnt == 3:
+                self.score_change = [1000 if pid in tenpai else -3000 for pid in range(4)]
+        elif end_state == RON:
+            for pid in pidl:
+                self.score_change[pid] = self.get_score(pid) * (3 if pid == 0 else 2)
+            change_sum = sum(s for s in self.score_change)
+            self.score_change[self.last_discard().owner_pid] = -change_sum
+        elif end_state == TSUMO:
+            winner = pidl[0]
+            self.score_change[winner] = self.get_score(winner) * (3 if winner == 0 else 2)
+            for pid in range(4):
+                if pid == winner:
+                    continue
+                if pid == 0:
+                    self.score_change[pid] = -self.score_change[winner]/2
+                elif winner == 0:
+                    self.score_change[pid] = -self.score_change[winner]/3
+                else:
+                    self.score_change[pid] = -self.score_change[winner]/4
+        for pid in range(4):
+            if self.riichi[pid] != INVALID_TURN and pid not in pidl:
+                self.score_change[pid] -= 1000
     
     def action_draw(self) -> None:
         if self.live_wall_index < 70:
@@ -364,8 +401,9 @@ class RoundState():
             self.action_kyuushuu_kyuuhai()
     
     def get_value_and_ended(self, pid: int):
-        ## TODO - use scoring as return value
-        if not self.game_state != GS_ONGOING:
+        if self.game_state != GS_ONGOING:
+            return self.score_change[pid], True
+            '''
             if pid in self.winner:
                 ## player won
                 return 1, True
@@ -383,6 +421,7 @@ class RoundState():
             else:
                 ## ryuukyoku
                 return 0, True
+            '''
         ## game ongoing
         return 0, False
     
@@ -420,6 +459,8 @@ class RoundState():
         split_melds = [Meld(pid, INVALID_PLAYER, PON if m.count(m[0]) == 3 else PAIR if m.count(m[0]) == 2 else CHII, m[0], INVALID_TURN) for m in split]
         hand_melds = self.player_open_melds(pid) + split_melds
         return hand_melds
+    
+    
     
     
     

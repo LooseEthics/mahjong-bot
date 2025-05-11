@@ -12,13 +12,14 @@ class Meld():
         return self.__str__()
     
     def __str__(self):
-        s = f"{OMNames[self.type]} - {self.turn}, O: {WNames[self.owner_pid]}, T: {WNames[self.target_pid]}, Tiles: "
+        s = f"<{OMNames[self.type]} - {self.turn}, O: {WNames[self.owner_pid]}, T: {WNames[self.target_pid]}, Tiles: "
         if self.type == CHII:
             s += tilelist2tenhou([self.tile, self.tile + 1, self.tile + 2])
         elif self.type == PON:
             s += tilelist2tenhou(3*[self.tile])
         else:
             s += tilelist2tenhou(4*[self.tile])
+        s += ">"
         return s
 
     def apply(self, opid, tpid, meld_type, tile, turn):
