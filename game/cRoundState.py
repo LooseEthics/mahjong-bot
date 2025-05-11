@@ -392,10 +392,22 @@ class RoundState():
     def player_hand_is_closed(self, pid: int) -> bool:
         return len([m for m in self.player_open_melds(pid) if m.type != ANKAN]) == 0
     
-    def get_visible_dora(self):
-        out = [INVALID_TILE] * 5
-        for i in range(self.kan_cnt() + 1):
-            out[i] = self.dead_wall[i]
+    def get_visible_dora(self, pad = True):
+        if pad:
+            out = [INVALID_TILE] * 5
+            for i in range(self.kan_cnt() + 1):
+                out[i] = self.dead_wall[i]
+        else:
+            out = [self.dead_wall[i] for i in range(self.kan_cnt() + 1)]
+        return out
+    
+    def get_visible_ura(self, pad = True):
+        if pad:
+            out = [INVALID_TILE] * 5
+            for i in range(self.kan_cnt() + 1):
+                out[i] = self.dead_wall[i + 5]
+        else:
+            out = [self.dead_wall[i + 5] for i in range(self.kan_cnt() + 1)]
         return out
     
     def get_visible_state(self, pid: int):
@@ -584,6 +596,79 @@ class RoundState():
                 return False
         return True
     
+    def player_has_sanshoku_doujun(self, hand_melds: list[Meld]) -> bool:
+        shuntsu_val = [m.tile % 9 for m in hand_melds if m.type == CHII]
+        if len(shuntsu_val) >= 3:
+            if shuntsu_val.count(shuntsu_val[0]) >= 3 or shuntsu_val.count(shuntsu_val[1]) >= 3:
+                return True
+        return False
+    
+    def player_has_ittsuu(self, hand_melds: list[Meld]) -> bool:
+        shuntsu = [m.tile for m in hand_melds if m.type == CHII].sorted()
+        if len(shuntsu) >= 3:
+            first_diff = [t - shuntsu[0] for t in shuntsu]
+            second_diff = [t - shuntsu[1] for t in shuntsu]
+            if (shuntsu[0] % 9 == 0 and 3 in first_diff and 6 in first_diff) or (shuntsu[1] % 9 == 0 and 3 in second_diff and 6 in second_diff):
+                return True
+        return False
+    
+    def player_has_toitoi(self, hand_melds: list[Meld]) -> bool:
+        koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
+        return len(koukan) == 4
+    
+    def player_has_sanankou(self, hand_melds: list[Meld], open_melds: list[Meld]) -> bool:
+        ## TODO: koutsu completed via ron is considered open
+        closed_koutsu = [m.tile for m in hand_melds if m.type == PON] ## hand melds converts kans to pons
+        for m in open_melds:
+            if m.type in Kans or m.type == PON:
+                closed_koutsu.remove(m.tile)
+        return len(closed_koutsu) >= 3
+    
+    def player_has_sanshoku_doukou(self, hand_melds: list[Meld]) -> bool:
+        koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON].sorted()
+        if len(koukan_val) >= 3:
+            if koukan[0] // 9 == 0 and koukan[0] + 9 in koukan and koukan[0] + 2*9 in koukan or \
+                koukan[1] // 9 == 0 and koukan[1] + 9 in koukan and koukan[1] + 2*9 in koukan:
+                    return True
+        return False
+    
+    def player_has_sankantsu(self, open_melds: list[Meld]) -> bool:
+        kantsu = [m.tile for m in hand_melds if m.type in Kans]
+        return len(kantsu) == 3
+    
+    def player_has_honroutou(self, open_hand: list[int]) -> bool:
+        for t in open_hand:
+            if t not in KokushiTiles:
+                return False
+        return True
+    
+    def player_has_shousangen(self, hand_melds: list[Meld]) -> bool:
+        koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
+        return HAKU in koukan and HATSU in koukan and CHUN in koukan
+    
+    def player_has_honitsu(self, open_hand: list[int]) -> bool:
+        non_jihai = [t for t in open_hand if t < JIHAI_OFFSET]
+        suit = non_jihai[0] // 9
+        for t in non_jihai:
+            if t // 9 != suit:
+                return False
+        return True
+    
+    def player_has_junchan(self, hand_melds: list[Meld]) -> bool:
+        for m in hand_melds:
+            if m.tile in Terminals or (m.type == CHII and m.tile % 9 == 6):
+                pass
+            else:
+                return False
+        return True
+    
+    def player_has_chinitsu(self, open_hand: list[int]) -> bool:
+        suit = open_hand[0] // 9
+        for t in open_hand:
+            if t // 9 != suit:
+                return False
+        return True
+    
     def get_score(self, pid: int) -> int:
         
         open_hand = self.open_hand(pid) + [self.agari]
@@ -648,20 +733,80 @@ class RoundState():
         han += self.player_yakuhai_cnt(hand_melds)
         if self.player_has_chanta(hand_melds):
             han += 2
-        ## sanshoku doujun
-        ## ittsuu
-        ## toitoi
-        ## sanankou
-        ## sanshoku doukou
-        ## sankantsu
-        ## honroutou
-        ## shousangen
-        ## honitsu
-        ## junchan
-        ## chinitsu
+        if self.player_has_sanshoku_doujun(hand_melds) or self.player_has_ittsuu(hand_melds):
+            ## mutually exclusive, same scoring
+            if self.player_hand_is_closed(pid):
+                han += 2
+            else:
+                han += 1
+        if self.player_has_toitoi(hand_melds):
+            han += 2
+        if self.player_has_sanankou(hand_melds, open_melds):
+            han += 2
+        if self.player_has_sanshoku_doukou(hand_melds):
+            han += 2
+        if self.player_has_sankantsu(open_melds):
+            han += 2
+        if self.player_has_honroutou(open_hand):
+            han += 2
+        if self.player_has_shousangen(open_melds):
+            han += 2
+        if self.player_has_honitsu(open_hand):
+            if self.player_hand_is_closed(pid):
+                han += 3
+            else:
+                han += 2
+        if self.player_has_junchan(open_melds):
+            if self.player_hand_is_closed(pid):
+                han += 3
+            else:
+                han += 2
+        if self.player_has_chinitsu(open_hand):
+            if self.player_hand_is_closed(pid):
+                han += 6
+            else:
+                han += 5
         
-        return 0
-
+        if han == 0:
+            ## no yaku - keishiki
+            return 0
+        
+        dora_list = self.get_visible_dora(False)
+        if self.riichi[pid] > INVALID_ROUND:
+            dora_list += self.get_visible_ura(False)
+        for dora_i in dora_list:
+            if dora_i == INVALID_TILE:
+                continue
+            elif dora_i < JIHAI_OFFSET:
+                dora = (dora_i // 9) * 9 + (dora_i + 1) % 9
+            elif dora_i in Kazehai:
+                dora = JIHAI_OFFSET + ((dora_i - JIHAI_OFFSET + 1) % 4)
+            else:
+                dora = SANGEN_OFFSET + ((dora_i - SANGEN_OFFSET + 1) % 3)
+            han += open_hand.count(dora)
+            for m in open_melds:
+                if m.type in Kans and m.tile == dora:
+                    han += 1
+        
+        if han >= 13:
+            ## kazoe yakuman
+            return 8000
+        elif han >= 11:
+            ## sanbaiman
+            return 6000
+        elif han >= 8:
+            ## baiman
+            return 4000
+        elif han >= 6:
+            ## haneman
+            return 3000
+        elif han >= 5:
+            ## mangan
+            return 2000
+        pts = fu * (2 ** (2 + han))
+        if pts >= 2000:
+            return 2000
+        return pts
 
     
 def recursive_hand_split(hand: list[int]) -> list[list[int]] | None:
