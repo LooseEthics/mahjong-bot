@@ -1,11 +1,12 @@
 
 import pickle
-from random import shuffle, randrange
+from random import shuffle, randint
 
 from common import *
 from cDiscard import Discard
-from cOpenMeld import OpenMeld
+from cMeld import Meld
 from cShanten import Shanten
+from cVisibleState import VisibleState
 
 class RoundState():
     def __init__(self, init_type: str = "random", **kwargs):
@@ -20,18 +21,19 @@ class RoundState():
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
-        self.open = [OpenMeld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4)] # OpenMeld instances
+        self.open = [Meld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4)] # OpenMeld instances
         self.discard = [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88)] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
         self.live_wall = self.tiles[66:]
         self.live_wall_index = 0
         self.drawn_tile = INVALID_TILE
-        self.game_running = True
         self.winner = []
+        self.game_state = GS_ONGOING
         self.game_state_str = "Ongoing"
         self.predraw = True
         self.agari = INVALID_TILE
+        self.round_wind = randint(0, 3)
     
     def load(self, fname: str):
         with open(fname, "rb") as f:
@@ -123,7 +125,7 @@ class RoundState():
         return self.turn <= 4 and len(self.open) == 0 and len([t for t in KokushiTiles if t in self.hands[self.active_player]]) >= 9
     
     def action_kyuushuu_kyuuhai(self):
-        g.round.round_end([], "Kyuushuu Kyuuhai")
+        g.round.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Kyuushuu Kyuuhai")
     
     def open_hand(self, pid: int) -> list[int]:
         out = self.hands[pid].copy()
@@ -147,9 +149,9 @@ class RoundState():
         
         return Shanten(hand = self.open_hand(pid), drawn_tile = shanten_tile)
 
-    def round_end(self, pidl: list[int], state_str: str = "Ended") -> None:
-        self.game_running = False
+    def round_end(self, pidl: list[int], end_state: int, end_state_str: str = "Ended") -> None:
         self.winner = pidl
+        self.game_state = end_state
         self.game_state_str = state_str
     
     def action_draw(self) -> None:
@@ -158,7 +160,7 @@ class RoundState():
             self.live_wall_index += 1
         else:
             ## ryuukyoku
-            self.round_end([], "Ryuukyoku")
+            self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Ryuukyoku")
     
     def get_kan_owners(self) -> list[int]:
         out = []
@@ -174,7 +176,7 @@ class RoundState():
             if len(kan_owners) >= 4:
                 if kan_owners[0] != kan_owners[1] or kan_owners[0] != kan_owners[2] or kan_owners[0] != kan_owners[3]:
                     ## suukaikan
-                    self.round_end([], "Suukaikan")
+                    self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suukaikan")
     
     def action_discard(self, tile: int) -> None:
         ## tile id, not position in hand
@@ -191,7 +193,7 @@ class RoundState():
         
         self.discard[self.turn - 1].apply(self.turn, self.active_player, tile)
         if self.trigger_suufon_renda():
-            self.round_end([], "Suufon Renda")
+            self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suufon Renda")
         self.drawn_tile = INVALID_TILE
         self.active_player = (self.active_player + 1) % 4
         self.turn += 1
@@ -257,14 +259,14 @@ class RoundState():
         for r in self.riichi:
             if r == INVALID_TURN:
                 return
-        self.round_end([], "Suucha Riichi")
+        self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suucha Riichi")
     
     def action_ron(self, pidl: list[int]) -> None:
-        self.round_end(pidl, f"Ron {pidl} on {self.last_discard.owner_pid}")
+        self.round_end(pidl, end_state = GS_RON, end_state_str = f"Ron {pidl} on {self.last_discard.owner_pid}")
         self.agari = self.ldt()
     
     def action_tsumo(self) -> None:
-        self.round_end([self.active_player], f"Tsumo {self.active_player}")
+        self.round_end([self.active_player], end_state = GS_TSUMO, end_state_str = f"Tsumo {self.active_player}")
         self.agari = self.drawn_tile
     
     def player_in_furiten(self, pid: int, shanten: Shanten = None) -> bool:
@@ -362,20 +364,46 @@ class RoundState():
             self.action_kyuushuu_kyuuhai()
     
     def get_value_and_ended(self, pid: int):
-        if not self.game_running:
+        ## TODO - use scoring as return value
+        if not self.game_state != GS_ONGOING:
             if pid in self.winner:
+                ## player won
                 return 1, True
             elif len(self.winner) > 0:
-                return -1, True
+                if self.game_state == GS_RON:
+                    if self.last_discard().owner_pid == pid:
+                        ## player lost on ron
+                        return -1, True
+                    else:
+                        ## player not involved in ron
+                        return 0, True
+                else:
+                    ## player lost on tsumo
+                    return -1, True
             else:
+                ## ryuukyoku
                 return 0, True
+        ## game ongoing
         return 0, False
     
-    def player_open_melds(self, pid: int) -> list[OpenMeld]:
+    def player_open_melds(self, pid: int) -> list[Meld]:
         return [m for m in self.open if m.owner_pid == pid]
     
     def player_hand_is_closed(self, pid: int) -> bool:
         return len([m for m in self.player_open_melds(pid) if m.type != ANKAN]) == 0
+    
+    def get_visible_dora(self):
+        out = [INVALID_TILE] * 5
+        for i in range(self.kan_cnt() + 1):
+            out[i] = self.dead_wall[i]
+        return out
+    
+    def get_visible_state(self, pid: int):
+        return VisibleState(pid, self.drawn_tile, self.hands[pid], self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
+    
+    
+    
+    ## scoring
     
     def get_fu(self, pid: int) -> int:
         fu = 20

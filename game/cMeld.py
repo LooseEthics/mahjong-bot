@@ -1,7 +1,7 @@
 
 from common import *
 
-class OpenMeld():
+class Meld():
     def __init__(self, opid, tpid, meld_type, tile, turn):
         self.apply(opid, tpid, meld_type, tile, turn)
     

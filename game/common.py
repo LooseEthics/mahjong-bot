@@ -16,6 +16,10 @@ INVALID_TURN = -1
 AGARI = -1
 TENPAI = 0
 IISHANTEN = 1
+GS_ONGOING = 0
+GS_RYUUKYOKU = 1
+GS_RON = 2
+GS_TSUMO = 3
 OMNames = {
     INVALID_MELD: "Invalid Meld",
     ANKAN: "Ankan",

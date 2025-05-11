@@ -2,8 +2,7 @@
 from common import *
 from cDiscard import Discard
 from cGameState import GameState
-from cOpenMeld import OpenMeld
-from cPlayerState import PlayerState
+from cMeld import Meld
 from cRoundState import RoundState
 
     
@@ -79,7 +78,7 @@ def do_postdraw():
         input_str = input()
     g.round.do_action(input_str)
 
-while g.round.game_running:
+while g.round.game_state == GS_ONGOING:
     
     print(g.round)
     

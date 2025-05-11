@@ -1,6 +1,5 @@
 
 from cRoundState import RoundState
-from cPlayerState import PlayerState
 
 class GameState():
     def __init__(self):
@@ -12,7 +11,6 @@ class GameState():
     
     def init_round(self):
         self.round = RoundState()
-        self.players = [PlayerState(self.round, i) for i in range(4)]
     
     def __repr__(self):
         s =  f"Game state: {WNames[self.round_wind]} {self.round_num}, Honba {self.honba}\n"
