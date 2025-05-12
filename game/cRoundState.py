@@ -25,7 +25,7 @@ class RoundState():
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
         self.open = [] # OpenMeld instances
-        self.discard = [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88)] # Discard instances
+        self.discard = [] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
         self.live_wall = self.tiles[66:]
@@ -92,14 +92,14 @@ class RoundState():
         return sum(1 for m in self.open if m.type in Kans)
     
     def last_discard(self) -> Discard:
-        return self.discard[-1]
+        return self.discard[-1] if self.discard else None
     
     def ldt(self) -> int:
-        return self.last_discard().tile
+        return self.last_discard().tile if self.discard else INVALID_TILE
         
     def player_can_pon(self, pid: int) -> bool:
         #print("player can pon", pid, self.last_discard().owner_pid, self.hands[pid], self.ldt())
-        return pid != self.last_discard().owner_pid and self.hands[pid].count(self.ldt()) >= 2
+        return self.discard and pid != self.last_discard().owner_pid and self.hands[pid].count(self.ldt()) >= 2
     
     def who_can_pon(self) -> int:
         for pid in range(4):
@@ -388,7 +388,7 @@ class RoundState():
         else:
             ## postdraw
             if self.active_can_kyuushuu_kyuuhai():
-                valid_moves.append("kk")
+                valid_moves.append("k")
             dt = self.drawn_tile
             if self.riichi[pid] == INVALID_TURN:
                 if self.shanten(pid).shanten == IISHANTEN:
@@ -502,7 +502,7 @@ class RoundState():
         elif action_type == "R":
             ron_list = [int(x) for x in action[1:]]
             self.action_ron(ron_list)
-        elif action == "kk":
+        elif action == "k":
             self.action_kyuushuu_kyuuhai()
     
     def get_value_and_ended(self, pid: int):
@@ -557,9 +557,11 @@ class RoundState():
     def get_visible_state(self, pid: int = INVALID_PLAYER):
         if pid == INVALID_PLAYER:
             pid = self.active_player
-        visible_discard = self.discard + [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88 - len(self.discard))]
-        visible_open = self.open + [Meld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4 - len(self.open))]
-        return VisibleState(pid, self.drawn_tile, self.hands[pid], self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
+        hand = self.open_hand(pid)
+        if self.predraw or self.drawn_tile != INVALID_TILE:
+            ## ghost tile for after-call discards
+            hand.append(INVALID_TILE)
+        return VisibleState(pid, self.drawn_tile, hand, self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
             
     def complete_hand_split(self, pid: int) -> list[Meld] | None:
         ## only call this for winning hands
@@ -958,6 +960,9 @@ class RoundState():
         if pts >= 2000:
             return 2000
         return pts
+    
+    def get_normalized_score_change(self):
+        return [s/48000 for s in self.score_change]
 
     
 def recursive_hand_split(hand: list[int]) -> list[list[int]] | None:

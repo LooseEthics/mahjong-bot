@@ -20,7 +20,7 @@ class Shanten:
                 # 5+ pairs, standard will be at least 3
                 self.copy(chiitoi)
                 return
-            standard = self._shanten_standard(hand)
+            standard = _shanten_standard(tuple(hand))
             best = minimal_shanten_tuple(chiitoi, kokushi, standard)
             
             self.copy(best)
@@ -99,92 +99,93 @@ class Shanten:
                 
         return Shanten(shanten = sh, waits = list(KokushiTiles) if not has_pair else [t for t in KokushiTiles if t not in hand], riichi_discards = rd)
 
-    def _shanten_standard(self, hand: list[int]) -> int:
-        if len(hand) != 13 and len(hand) != 14:
-            return Shanten(shanten = inf, waits = [], riichi_discards = [])
+@lru_cache(maxsize=100000)
+def _shanten_standard(hand: tuple[int]) -> int:
+    if len(hand) != 13 and len(hand) != 14:
+        return Shanten(shanten = inf, waits = [], riichi_discards = [])
+    
+    min_shanten = 8  # maximum possible shanten for standard form
+    waits = []
+    rd = []
+    
+    # generate all valid groupings
+    for grouping in _generate_groupings_cached(tuple(hand)):
+        complete_melds = 0
+        taatsu = 0
+        remaining_tiles = []
         
-        min_shanten = 8  # maximum possible shanten for standard form
-        waits = []
-        rd = []
+        for group in grouping:
+            ## count complete melds
+            if len(group) == 3:
+                if (group[0] == group[1] == group[2]) or \
+                   (group[0]+1 == group[1] and group[1]+1 == group[2]):
+                    complete_melds += 1
+            ## count taatsu
+            elif len(group) == 2:
+                if group[0] == group[1]:  ## pair
+                    taatsu += 1
+                elif group[0] + 1 == group[1] or group[0] + 2 == group[1]:  ## ryanmen or kanchan
+                    taatsu += 1
+            elif len(group) == 1:
+                remaining_tiles.append(group[0])
         
-        # generate all valid groupings
-        for grouping in _generate_groupings_cached(tuple(hand)):
-            complete_melds = 0
-            taatsu = 0
-            remaining_tiles = []
+        ## calculate shanten for this grouping
+        current_shanten = 8 - 2*complete_melds - min(4 - complete_melds, taatsu)
+        if current_shanten <= min_shanten:
+            if current_shanten < min_shanten:
+                waits = []
+                rd = []
+                
+            min_shanten = current_shanten
+            if min_shanten == 0:
+                break
             
+            ## find waits
             for group in grouping:
-                ## count complete melds
-                if len(group) == 3:
-                    if (group[0] == group[1] == group[2]) or \
-                       (group[0]+1 == group[1] and group[1]+1 == group[2]):
-                        complete_melds += 1
-                ## count taatsu
-                elif len(group) == 2:
-                    if group[0] == group[1]:  ## pair
-                        taatsu += 1
-                    elif group[0] + 1 == group[1] or group[0] + 2 == group[1]:  ## ryanmen or kanchan
-                        taatsu += 1
-                elif len(group) == 1:
-                    remaining_tiles.append(group[0])
+                if len(group) == 2:
+                    if group[0] == group[1]:  ## pair - can become triplet
+                        waits.append(group[0])
+                    elif (group[0] // 9 == group[1] // 9) and group[0] // 9 < 3:  
+                        diff = group[1] - group[0]
+                        if diff == 1:  ## ryanmen
+                            if group[0] % 9 > 0:
+                                waits.append(group[0] - 1)
+                            if group[0] % 9 < 7:
+                                waits.append(group[0] + 2)
+                        elif diff == 2:  ## kanchan
+                            waits.append(group[0] + 1)
+
+
+            for t in remaining_tiles:
+                ## can form a pair
+                waits.append(t)
+                ## can form a sequence
+                if t // 9 < 3:
+                    v = t % 9
+                    if v > 0:
+                        waits.append(t - 1)
+                        if v > 1:
+                            waits.append(t - 2)
+                    if v < 8:
+                        waits.append(t + 1)
+                        if v < 7:
+                            waits.append(t + 2)
             
-            ## calculate shanten for this grouping
-            current_shanten = 8 - 2*complete_melds - min(4 - complete_melds, taatsu)
-            if current_shanten <= min_shanten:
-                if current_shanten < min_shanten:
-                    waits = []
-                    rd = []
-                    
-                min_shanten = current_shanten
-                if min_shanten == 0:
-                    break
-                
-                ## find waits
-                for group in grouping:
-                    if len(group) == 2:
-                        if group[0] == group[1]:  ## pair - can become triplet
-                            waits.append(group[0])
-                        elif (group[0] // 9 == group[1] // 9) and group[0] // 9 < 3:  
-                            diff = group[1] - group[0]
-                            if diff == 1:  ## ryanmen
-                                if group[0] % 9 > 0:
-                                    waits.append(group[0] - 1)
-                                if group[0] % 9 < 7:
-                                    waits.append(group[0] + 2)
-                            elif diff == 2:  ## kanchan
-                                waits.append(group[0] + 1)
-
-
-                for t in remaining_tiles:
-                    ## can form a pair
-                    waits.append(t)
-                    ## can form a sequence
-                    if t // 9 < 3:
-                        v = t % 9
-                        if v > 0:
-                            waits.append(t - 1)
-                            if v > 1:
-                                waits.append(t - 2)
-                        if v < 8:
-                            waits.append(t + 1)
-                            if v < 7:
-                                waits.append(t + 2)
-                
-                waits = list(set(waits))
-                
-                ## riichi discards
-                if min_shanten == 1:
-                    group_lengths = [len(group) for group in grouping]
-                    if 1 in group_lengths:
-                        ## yojouhai or kuttsuki
-                        for group in grouping:
-                            if len(group) == 1:
-                                rd += group
-                    else:
-                        ## kanzenkei or atamanashi
-                        1
-        
-        return Shanten(shanten = min_shanten, waits = waits, riichi_discards = rd)
+            waits = list(set(waits))
+            
+            ## riichi discards
+            if min_shanten == 1:
+                group_lengths = [len(group) for group in grouping]
+                if 1 in group_lengths:
+                    ## yojouhai or kuttsuki
+                    for group in grouping:
+                        if len(group) == 1:
+                            rd += group
+                else:
+                    ## kanzenkei or atamanashi
+                    1
+    
+    return Shanten(shanten = min_shanten, waits = waits, riichi_discards = rd)
 
 @lru_cache(maxsize=100000)
 def _generate_groupings_cached(tiles: tuple[int]) -> list[list[list[int]]]:

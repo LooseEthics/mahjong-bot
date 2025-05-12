@@ -1,5 +1,11 @@
 
+from collections import deque
 import numpy as np
+import os
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
 
 from common import *
 from cDiscard import Discard
@@ -8,38 +14,79 @@ from cMeld import Meld
 from cRoundState import RoundState
 
 from cMCTS import MCTS
+from cQNet import *
 
-    
-g = GameState()
-g.init_round()
 
-args = {
-    'C': 1.41,
-    'search_num': 10
-}
-mcts = MCTS(g.round, args)
-player = 0
+def train_qnet(qnet, optimizer, dataset, batch_size=32, epochs=1):
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    qnet.train()
+    for epoch in range(epochs):
+        for state, target_policy, target_value in loader:
+            optimizer.zero_grad()
+            policy_logits, value_pred = qnet(state)
+            policy_loss = F.cross_entropy(policy_logits, target_policy.argmax(dim=1))
+            value_loss = F.mse_loss(value_pred, target_value)
+            loss = policy_loss + value_loss
+            loss.backward()
+            optimizer.step()
+    
+if __name__ == "__main__":
+    
+    save_dir = "checkpoints"
+    os.makedirs(save_dir, exist_ok = True)
+    
+    qnet = QNet()
+    optimizer = torch.optim.Adam(qnet.parameters(), lr=1e-3)
+    episode_num = 1000
+    
+    g = GameState()
 
-while g.round.game_state == GS_ONGOING:
+    mcts_args = {
+        'C': 1.41,
+        'search_num': 20
+    }
     
-    print(g.round)
-    ptm = g.round.player_to_move()
-    valid_moves = g.round.get_valid_moves(ptm)
-    if len(valid_moves) == 1:
-        action = valid_moves[0]
-    elif False:
-        action = ""
-        print("Valid moves:", valid_moves)
-        while action not in valid_moves:
-            action = input()
-    else:
-        mcts_probs = mcts.search()
-        print("mcts_probs", mcts_probs)
-        action, prob = "", -np.inf
-        for key,value in mcts_probs.items():
-            if value > prob:
-                action = key
-                prob = value
-    g.round.do_action(action)
-print(g.round.game_state_str, g.round.score_change)
-    
+    for episode in range(1, episode_num + 1):
+        
+        g.init_round()
+        trajectory = []
+        mcts = MCTS(g.round, mcts_args, qnet)
+
+        while g.round.game_state == GS_ONGOING:
+            
+            print(g.round)
+            ptm = g.round.player_to_move()
+            valid_moves = g.round.get_valid_moves(ptm)
+            if len(valid_moves) == 1:
+                action = valid_moves[0]
+            else:
+                mcts_probs = mcts.search()
+                policy = torch.zeros(QN_OUT_SIZE)
+                
+                for action, p in mcts_probs.items():
+                    policy[action2logit(action)] = p
+                    
+                state_tensor = g.round.get_visible_state(ptm).to_tensor().squeeze(0)
+                trajectory.append((state_tensor, policy, ptm))
+
+                action = max(mcts_probs.items(), key=lambda x: x[1])[0]
+                print("mcts_probs", mcts_probs)
+                
+            g.round.do_action(action)
+            
+        print(g.round.game_state_str, g.round.score_change)
+        
+        results = g.round.get_normalized_score_change()
+        data = []
+        
+        for state, policy, pid in trajectory:
+            value = torch.tensor(results[pid], dtype=torch.float32)
+            data.append((state, policy, value))
+        if data:
+            states, policies, values = zip(*data)
+            dataset = TensorDataset(torch.stack(states), torch.stack(policies), torch.stack(values))
+            train_qnet(qnet, optimizer, dataset)
+        
+        model_path = os.path.join(save_dir, f"qnet_ep{episode:03d}.pt")
+        torch.save(qnet.state_dict(), model_path)
+        print(f"Episode {episode} complete — model saved to {model_path}")
