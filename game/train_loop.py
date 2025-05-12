@@ -2,6 +2,7 @@
 from collections import deque
 import numpy as np
 import os
+import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,14 +30,40 @@ def train_qnet(qnet, optimizer, dataset, batch_size=32, epochs=1):
             loss = policy_loss + value_loss
             loss.backward()
             optimizer.step()
+
+def latest_model_path(save_dir: str):
+    files = os.listdir(save_dir)
     
+    max_num = -1
+    latest_model = None
+    
+    pattern = re.compile(r'qnet_ep(\d+)\.pt')
+    for filename in files:
+        match = pattern.match(filename)
+        if match:
+            current_num = int(match.group(1))
+            if current_num > max_num:
+                max_num = current_num
+                latest_model = filename
+    if latest_model:
+        return os.path.join(save_dir, latest_model)
+    else:
+        return ""
+    
+    
+
 if __name__ == "__main__":
     
     save_dir = "checkpoints"
     os.makedirs(save_dir, exist_ok = True)
+    to_load = latest_model_path(save_dir)
     
     qnet = QNet()
     optimizer = torch.optim.Adam(qnet.parameters(), lr=1e-3)
+    if to_load:
+        qnet.load_state_dict(torch.load(to_load))
+        start_ep = int(to_load[to_load.index('_ep') + 3:to_load.index('.')])
+        print(f"Loaded model {to_load}")
     episode_num = 1000
     
     g = GameState()
@@ -46,7 +73,7 @@ if __name__ == "__main__":
         'search_num': 20
     }
     
-    for episode in range(1, episode_num + 1):
+    for episode in range(start_ep + 1, episode_num + start_ep):
         
         g.init_round()
         trajectory = []
@@ -54,7 +81,7 @@ if __name__ == "__main__":
 
         while g.round.game_state == GS_ONGOING:
             
-            print(g.round)
+            #print(g.round)
             ptm = g.round.player_to_move()
             valid_moves = g.round.get_valid_moves(ptm)
             if len(valid_moves) == 1:
@@ -70,11 +97,13 @@ if __name__ == "__main__":
                 trajectory.append((state_tensor, policy, ptm))
 
                 action = max(mcts_probs.items(), key=lambda x: x[1])[0]
-                print("mcts_probs", mcts_probs)
+                #print("mcts_probs", mcts_probs)
                 
             g.round.do_action(action)
             
-        print(g.round.game_state_str, g.round.score_change)
+        #print(g.round.game_state_str, g.round.score_change)
+        with open("game_results.txt", "a") as f:
+            f.write(f"ep {episode} {g.round.game_state_str} {g.round.score_change}\n")
         
         results = g.round.get_normalized_score_change()
         data = []
