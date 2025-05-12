@@ -92,7 +92,7 @@ def tenhou2tilelist(s: str) -> list[int]:
     return l
 
 def tenhou2onetile(tile: str) -> int:
-    print("called tenhou2onetile with", tile)
+    #print("called tenhou2onetile with", tile)
     try:
         return TenhouStr.index(tile[1]) * 9 + int(tile[0]) - 1
     except:

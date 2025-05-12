@@ -1,23 +1,27 @@
 
-import numpy as np
+import copy
 import math
+import numpy as np
+
+from common import *
 
 class Node:
-    def __init__(self, game, args, state, parent = None, action_taken = None):
+    def __init__(self, game, args, root_pid, parent = None, action_taken = None):
         self.game = game
         self.args = args
-        self.state = state
+        self.root_pid = root_pid
         self.parent = parent
         self.action_taken = action_taken
+        self.node_pid = self.game.player_to_move()
         
         self.children = []
-        self.expandable = game.get_valid_moves(state)
+        self.expandable = game.get_valid_moves(self.node_pid)
         
         self.visit_count = 0
         self.value_sum = 0
     
     def is_fully_expanded(self):
-        return len(self.expandable) == 0 and len(seld.children) > 0
+        return len(self.expandable) == 0 and len(self.children) > 0
     
     def select(self):
         best_child = None
@@ -36,52 +40,69 @@ class Node:
     
     def expand(self):
         action = np.random.choice(self.expandable)
-        self.expandable[action] = 0
-        child_state = self.state.copy()
-        child_state = self.game.get_next_state(child_state, action)
+        self.expandable.remove(action)
+        child_game = copy.deepcopy(self.game)
+        child_game.do_action(action)
         
-        child = Node(self.game, self.args, child_state, self, action)
+        child = Node(child_game, self.args, self.root_pid, self, action)
         self.children.append(child)
         return child
     
     def simulate(self):
-        value, is_terminal = self.game.get_value_and_ended()
-        value = self.game.get_opponent_value(value)
+        value, is_terminal = self.game.get_value_and_ended(self.node_pid)
         
         if is_terminal:
             return value
         
-        rollout_state = self.state.copy()
-        while True:
-            valid_moves = self.game.get_valid_moves()
+        rollout_game = copy.deepcopy(self.game)
+        
+        while not is_terminal:
+            rollout_pid = rollout_game.player_to_move()
+            #print("sim pid", rollout_pid)
+            #print("sim hand", rollout_game.hands[rollout_pid])
+            #print("sim draw", rollout_game.drawn_tile)
+            valid_moves = rollout_game.get_valid_moves(rollout_pid)
+            #print("sim valid moves", valid_moves)
             action = np.random.choice(valid_moves)
-            rollout_state = self.game.get_next_state(rollout_state, action)
-            value, is_terminal = self.game.get_value_and_ended()
-            if is_terminal:
-                
+            #print("sim choice", action)
+            rollout_game.do_action(action)
+            value, is_terminal = rollout_game.get_value_and_ended(self.node_pid)
+            #print("sim value", value, is_terminal)
+        return value
+    
+    def backpropagate(self, value: int):
+        self.value_sum += value
+        self.visit_count += 1
+        
+        if self.parent is not None:
+            self.parent.backpropagate(value)
 
 class MCTS:
     def __init__(self, game, args):
         self.game = game
         self.args = args
         
-    def search(self, state):
+    def search(self):
         
-        root = Node(self.game, self.args, state)
+        search_game = copy.deepcopy(self.game)
+        root = Node(search_game, self.args, search_game.active_player)
+        action_probs = {a: 0 for a in root.expandable}
         
-        for search in range(self.args['search_num']):
+        for _ in range(self.args['search_num']):
             node = root
             while node.is_fully_expanded():
                 node = node.select()
                 
-            value, is_terminal = game.get_value_and_ended()
-            value = self.game.get_opponent_value(value)
+            value, is_terminal = self.game.get_value_and_ended(node.root_pid)
             
             if not is_terminal:
                 node = node.expand()
                 value = node.simulate()
-                #simulation
-                
-            #backpropagation
+            node.backpropagate(value)
         
-        return visit_counts
+        for child in root.children:
+            action_probs[child.action_taken] = child.visit_count
+        action_sum = sum(action_probs.values())
+        for key, value in action_probs.items():
+            action_probs[key] = value / action_sum
+        return action_probs
