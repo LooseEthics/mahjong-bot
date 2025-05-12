@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import lru_cache
 from numpy import inf
 
 from common import *
@@ -107,7 +108,7 @@ class Shanten:
         rd = []
         
         # generate all valid groupings
-        for grouping in _generate_groupings(hand):
+        for grouping in _generate_groupings_cached(tuple(hand)):
             complete_melds = 0
             taatsu = 0
             remaining_tiles = []
@@ -185,18 +186,20 @@ class Shanten:
         
         return Shanten(shanten = min_shanten, waits = waits, riichi_discards = rd)
 
-def _generate_groupings(tiles: list[int]) -> list[list[list[int]]]:
+@lru_cache(maxsize=100000)
+def _generate_groupings_cached(tiles: tuple[int]) -> list[list[list[int]]]:
     # generate all possible tile groupings for shanten calc
     if not tiles:
         return [[]]
     
     groupings = []
+    tiles = list(tiles)
     
     # Try forming triplets
     for i in range(len(tiles)):
         if i + 2 < len(tiles) and tiles[i] == tiles[i + 1] == tiles[i + 2]:
             remaining = tiles[:i] + tiles[i+3:]
-            for group in _generate_groupings(remaining):
+            for group in _generate_groupings_cached(tuple(remaining)):
                 groupings.append([[tiles[i]]*3] + group)
     
     # Try forming sequences (only for number tiles)
@@ -207,14 +210,14 @@ def _generate_groupings(tiles: list[int]) -> list[list[list[int]]]:
             remaining.remove(t)
             remaining.remove(t + 1)
             remaining.remove(t + 2)
-            for group in _generate_groupings(remaining):
+            for group in _generate_groupings_cached(tuple(remaining)):
                 groupings.append([[t, t+1, t+2]] + group)
     
     # Try pairs
     for i in range(len(tiles)):
         if i + 1 < len(tiles) and tiles[i] == tiles[i + 1]:
             remaining = tiles[:i] + tiles[i + 2:]
-            for group in _generate_groupings(remaining):
+            for group in _generate_groupings_cached(tuple(remaining)):
                 groupings.append([[tiles[i]]*2] + group)
     
     # Single tiles

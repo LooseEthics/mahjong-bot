@@ -1,4 +1,6 @@
 
+from __future__ import annotations
+
 from common import *
 
 class Meld():
@@ -21,6 +23,9 @@ class Meld():
             s += tilelist2tenhou(4*[self.tile])
         s += ">"
         return s
+    
+    def clone(self) -> Meld:
+        return Meld(self.owner_pid, self.target_pid, self.type, self.tile, self.turn)
 
     def apply(self, opid, tpid, meld_type, tile, turn):
         self.owner_pid = opid
@@ -32,6 +37,6 @@ class Meld():
     def tile_in_meld(self, tile: int) -> bool:
         if self.type == CHII and tile in range(self.tile, self.tile + 3):
             return True
-        if (self.type == PON or self.type) in Kans and tile == self.tile:
+        if self.type == PON or self.type in Kans and tile == self.tile:
             return True
         return False

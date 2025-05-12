@@ -41,7 +41,7 @@ class Node:
     def expand(self):
         action = np.random.choice(self.expandable)
         self.expandable.remove(action)
-        child_game = copy.deepcopy(self.game)
+        child_game = self.game.clone()
         child_game.do_action(action)
         
         child = Node(child_game, self.args, self.root_pid, self, action)
@@ -54,7 +54,7 @@ class Node:
         if is_terminal:
             return value
         
-        rollout_game = copy.deepcopy(self.game)
+        rollout_game = self.game.clone()
         
         while not is_terminal:
             rollout_pid = rollout_game.player_to_move()
@@ -84,7 +84,7 @@ class MCTS:
         
     def search(self):
         
-        search_game = copy.deepcopy(self.game)
+        search_game = self.game.clone()
         root = Node(search_game, self.args, search_game.active_player)
         action_probs = {a: 0 for a in root.expandable}
         

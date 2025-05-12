@@ -24,8 +24,10 @@ while g.round.game_state == GS_ONGOING:
     
     print(g.round)
     ptm = g.round.player_to_move()
-    if ptm == player:
-        valid_moves = g.round.get_valid_moves(ptm)
+    valid_moves = g.round.get_valid_moves(ptm)
+    if len(valid_moves) == 1:
+        action = valid_moves[0]
+    elif False:
         action = ""
         print("Valid moves:", valid_moves)
         while action not in valid_moves:
@@ -39,5 +41,5 @@ while g.round.game_state == GS_ONGOING:
                 action = key
                 prob = value
     g.round.do_action(action)
-    
+print(g.round.game_state_str, g.round.score_change)
     

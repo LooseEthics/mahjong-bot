@@ -1,4 +1,6 @@
 
+from __future__ import annotations
+
 from common import *
 
 class Discard():
@@ -14,6 +16,9 @@ class Discard():
     
     def __repr__(self):
         return self.__str__()
+    
+    def clone(self):
+        return Discard(self.turn, self.owner_pid, self.tile)
 
     def apply(self, turn, opid, tile):
         self.turn = turn

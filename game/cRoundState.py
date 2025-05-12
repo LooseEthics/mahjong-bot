@@ -1,4 +1,5 @@
 
+from __future__ import annotations
 import pickle
 from random import shuffle, randint
 
@@ -23,7 +24,7 @@ class RoundState():
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
-        self.open = [Meld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4)] # OpenMeld instances
+        self.open = [] # OpenMeld instances
         self.discard = [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88)] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
@@ -38,6 +39,29 @@ class RoundState():
         self.round_wind = randint(0, 3)
         self.score_change = [0, 0, 0, 0]
     
+    def clone(self) -> RoundState:
+        new = RoundState.__new__(RoundState)
+        new.turn = self.turn
+        new.active_player = self.active_player
+        new.call_player = self.call_player
+        new.calls_made = {pid: self.calls_made[pid] for pid in self.calls_made}
+        new.hands = [hand[:] for hand in self.hands]
+        new.open = [m.clone() for m in self.open]
+        new.discard = [d.clone() for d in self.discard]
+        new.riichi = self.riichi[:]
+        new.dead_wall = self.dead_wall
+        new.live_wall = self.live_wall
+        new.live_wall_index = self.live_wall_index
+        new.drawn_tile = self.drawn_tile
+        new.winner = self.winner[:]
+        new.game_state = self.game_state
+        new.game_state_str = self.game_state_str
+        new.predraw = self.predraw
+        new.agari = self.agari
+        new.round_wind = self.round_wind
+        new.score_change = self.score_change[:]
+        return new
+    
     def load(self, fname: str):
         with open(fname, "rb") as f:
             state = pickle.load(f)
@@ -49,7 +73,7 @@ class RoundState():
     
     def __repr__(self):
         s =  f"Turn: {self.turn}, Predraw: {self.predraw}\n"
-        s += f"Active player: {WNames[self.active_player]}\n"
+        s += f"Active player: {WNames[self.active_player]}, Call player: {WNames[self.call_player]}\n"
         s += f"Drawn tile: {onetile2tenhou(self.drawn_tile)}, ({self.drawn_tile})\n"
         s += f"Live wall: {tilelist2tenhou(self.live_wall, False)}\n"
         s += f"Player hands: \n"
@@ -67,11 +91,8 @@ class RoundState():
     def kan_cnt(self) -> int:
         return sum(1 for m in self.open if m.type in Kans)
     
-    def next_open_index(self) -> int:
-        return sum(1 for m in self.open if m.type != INVALID_MELD)
-    
     def last_discard(self) -> Discard:
-        return self.discard[self.turn - 2]
+        return self.discard[-1]
     
     def ldt(self) -> int:
         return self.last_discard().tile
@@ -238,7 +259,7 @@ class RoundState():
             print(f"{self.action_discard.__name__}: invalid discard", self.hands[self.active_player], tile)
             return
         
-        self.discard[self.turn - 1].apply(self.turn, self.active_player, tile)
+        self.discard.append(Discard(self.turn, self.active_player, tile))
         if self.trigger_suufon_renda():
             self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suufon Renda")
         self.drawn_tile = INVALID_TILE
@@ -273,7 +294,7 @@ class RoundState():
         else:
             hand.remove(start)
             hand.remove(start + 1)
-        self.open[self.next_open_index()].apply(pid, (pid - 1) % 4, CHII, start, self.turn)
+        self.open.append(Meld(pid, (pid - 1) % 4, CHII, start, self.turn))
     
     def action_pon(self, pid: int) -> None:
         #print("action_pon", pid, self.hands[pid], self.ldt())
@@ -281,7 +302,7 @@ class RoundState():
         ## twice
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, PON, tile, self.turn)
+        self.open.append(Meld(pid, (self.active_player - 1) % 4, PON, tile, self.turn))
         self.active_player = pid
     
     def action_ankan(self) -> None:
@@ -291,7 +312,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, INVALID_PLAYER, ANKAN, tile, self.turn)
+        self.open.append(Meld(pid, INVALID_PLAYER, ANKAN, tile, self.turn))
         self.drawn_tile = INVALID_TILE
     
     def action_minkan(self, pid: int) -> None:
@@ -300,7 +321,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
         self.hands[pid].remove(tile)
-        self.open[self.next_open_index()].apply(pid, (self.active_player - 1) % 4, MINKAN, tile, self.turn)
+        self.open.append(Meld(pid, (self.active_player - 1) % 4, MINKAN, tile, self.turn))
         self.active_player = pid
     
     def action_shouminkan(self) -> None:
@@ -377,11 +398,14 @@ class RoundState():
                     valid_moves.append(f"d{onetile2tenhou(t)}") ## normal discards
             if self.drawn_tile not in self.hands[pid] or self.riichi[pid] != INVALID_TURN and self.drawn_tile != INVALID_TILE:
                 valid_moves.append(f"d{onetile2tenhou(dt)}") ## drawn tile discard
-            last_open = self.open[self.next_open_index() - 1] if self.next_open_index() > 0 else None
+            last_open = self.open[-1] if len(self.open) > 0 else None
             if ldt in self.hands[pid] and last_open is not None:
                 ## can't discard called tile
                 if last_open.tile_in_meld(ldt):
                     valid_moves.remove(f"d{onetile2tenhou(ldt)}")
+            if "d--" in valid_moves:
+                ## idfk where this comes from
+                valid_moves.remove("d--")
             if self.active_can_ankan():
                 valid_moves.append("a") ## ankan
             if self.active_can_shouminkan():
@@ -533,6 +557,8 @@ class RoundState():
     def get_visible_state(self, pid: int = INVALID_PLAYER):
         if pid == INVALID_PLAYER:
             pid = self.active_player
+        visible_discard = self.discard + [Discard(INVALID_TURN, INVALID_PLAYER, INVALID_TILE) for _ in range(88 - len(self.discard))]
+        visible_open = self.open + [Meld(INVALID_PLAYER, INVALID_PLAYER, INVALID_MELD, INVALID_TILE, INVALID_TURN) for _ in range(4*4 - len(self.open))]
         return VisibleState(pid, self.drawn_tile, self.hands[pid], self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
             
     def complete_hand_split(self, pid: int) -> list[Meld] | None:
