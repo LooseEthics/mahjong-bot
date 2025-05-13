@@ -400,10 +400,6 @@ class RoundState():
             if self.drawn_tile not in self.hands[pid] or self.riichi[pid] != INVALID_TURN and self.drawn_tile != INVALID_TILE:
                 valid_moves.append(f"d{onetile2tenhou(dt)}") ## drawn tile discard
             last_open = self.open[-1] if len(self.open) > 0 else None
-            if ldt in self.hands[pid] and last_open is not None:
-                ## can't discard called tile
-                if last_open.tile_in_meld(ldt):
-                    valid_moves.remove(f"d{onetile2tenhou(ldt)}")
             if "d--" in valid_moves:
                 ## idfk where this comes from
                 valid_moves.remove("d--")
@@ -414,6 +410,10 @@ class RoundState():
             if shanten.shanten <= TENPAI and self.drawn_tile != INVALID_TILE and \
                 (recursive_hand_split(self.hands[pid] + [self.drawn_tile]) is not None or self.player_has_chiitoi(pid) or self.player_has_kokushi(pid)):
                     valid_moves.append("T") ## tsumo
+            if ldt in self.hands[pid] and last_open is not None and len(valid_moves) > 1:
+                ## can't discard called tile
+                if last_open.tile_in_meld(ldt):
+                    valid_moves.remove(f"d{onetile2tenhou(ldt)}")
         return valid_moves
     
     def next_call_player(self) -> int:
@@ -608,7 +608,7 @@ class RoundState():
                     fu += 8
         for t in final_hand_set:
             if final_hand.count(t) >= 3:
-                if m.tile in KokushiTiles:
+                if t in KokushiTiles:
                     fu += 8
                 else:
                     fu += 4
@@ -771,10 +771,7 @@ class RoundState():
     
     def player_has_sanankou(self, hand_melds: list[Meld], open_melds: list[Meld]) -> bool:
         ## TODO: koutsu completed via ron is considered open
-        closed_koutsu = [m.tile for m in hand_melds if m.type == PON] ## hand melds converts kans to pons
-        for m in open_melds:
-            if m.type in Kans or m.type == PON:
-                closed_koutsu.remove(m.tile)
+        closed_koutsu = [m.tile for m in hand_melds if m.type == PON and m.turn == INVALID_TURN] ## hand melds converts kans to pons
         return len(closed_koutsu) >= 3
     
     def player_has_sanshoku_doukou(self, hand_melds: list[Meld]) -> bool:
