@@ -90,6 +90,8 @@ class Node:
             #print("sim hand", rollout_game.hands[rollout_pid])
             #print("sim draw", rollout_game.drawn_tile)
             valid_moves = rollout_game.get_valid_moves(rollout_pid)
+            if len(valid_moves) == 0:
+                print(rollout_game)
             #print("sim valid moves", valid_moves)
             action = np.random.choice(valid_moves)
             #print("sim choice", action)

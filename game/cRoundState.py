@@ -153,7 +153,7 @@ class RoundState():
         return self.turn <= 4 and len(self.open) == 0 and len([t for t in KokushiTiles if t in self.hands[self.active_player]]) >= 9
     
     def action_kyuushuu_kyuuhai(self):
-        g.round.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Kyuushuu Kyuuhai")
+        self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Kyuushuu Kyuuhai")
     
     def open_hand(self, pid: int) -> list[int]:
         out = self.hands[pid].copy()

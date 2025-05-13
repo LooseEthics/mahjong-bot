@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from common import *
 
@@ -32,6 +33,19 @@ def logit2action(logit: int):
         return "d" + onetile2tenhou(tile)
     else:
         return "pamsTRkxD"[logit - 89]
+
+def train_qnet(qnet, optimizer, dataset, batch_size=32, epochs=1):
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    qnet.train()
+    for epoch in range(epochs):
+        for state, target_policy, target_value in loader:
+            optimizer.zero_grad()
+            policy_logits, value_pred = qnet(state)
+            policy_loss = F.cross_entropy(policy_logits, target_policy.argmax(dim=1))
+            value_loss = F.mse_loss(value_pred, target_value)
+            loss = policy_loss + value_loss
+            loss.backward()
+            optimizer.step()
 
 class QNet(nn.Module):
     def __init__(self):

@@ -1,0 +1,59 @@
+
+import sys
+import torch
+import torch.nn.functional as F
+
+from cGameState import GameState
+from cMCTS import MCTS
+from cQNet import *
+from model_common import *
+
+if __name__ == "__main__":
+    arg_dict = parse_args(sys.argv)
+    if "model_path" not in arg_dict:
+        print("Missing model")
+        quit()
+    
+    qnet = QNet()
+    qnet.load_state_dict(torch.load(arg_dict["model_path"]))
+    qnet.eval()
+    
+    g = GameState()
+    episode_num = arg_dict["episode_num"] if "episode_num" in arg_dict else 1
+    
+    for episode in range(episode_num):
+        
+        print(f"episode {episode}")
+        g.init_round()
+        mcts = MCTS(g.round, mcts_args, qnet)
+        
+        while g.round.game_state == GS_ONGOING:
+            
+            pid = g.round.player_to_move()
+            valid_moves = g.round.get_valid_moves(pid)
+            if arg_dict["verbose"]:
+                print(g.round)
+                print("Valid moves:", valid_moves)
+            if len(valid_moves) == 1:
+                g.round.do_action(valid_moves[0])
+            else:
+                input_tensor = g.round.get_visible_state(pid).to_tensor()
+                
+                with torch.no_grad():
+                    policy_logits, value = qnet(input_tensor)
+                    
+                action_probs = F.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
+                
+                
+                best_action = max(valid_moves, key=lambda a: action_probs[action2logit(a)])
+
+                if arg_dict["verbose"]:
+                    print("Value estimate:", value.item())
+                    print("Best action:", best_action)
+                g.round.do_action(best_action)
+                if arg_dict["wait_flag"]:
+                    input("Press Enter to proceed")
+        
+        print(g.round.game_state_str, g.round.score_change)
+        with open("game_results_eval.txt", "a") as f:
+            f.write(f"model {arg_dict['model_path']} {g.round.game_state_str} {g.round.score_change}\n")

@@ -1,6 +1,6 @@
 TARGET = recurse_cnt
 CXX = g++
-SRCS = multiset_math.cpp
+SRCS = recurse_cnt.cpp multiset_math.cpp
 OBJS = $(SRCS:.cpp=.o)
 LIBS = -lgmpxx -lgmp
 CXXFLAGS = -O2 -Wall

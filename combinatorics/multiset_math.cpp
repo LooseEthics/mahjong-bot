@@ -1,16 +1,14 @@
 #include <algorithm>
 #include <array>
-#include <chrono>
-#include <gmpxx.h>
 #include <iomanip>
-#include <iostream>
 #include <mutex>
 #include <numeric>
 #include <ostream>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
-#include <vector>
+
+#include "multiset_math.h"
 
 constexpr int univ_count = 34;
 constexpr int mc = 13;
@@ -30,7 +28,7 @@ void init_comb_table() {
     }
 }
 
-void init_fact_table(){
+void init_fact_table() {
   mpz_class f = 1;
   for (int i = 0; i < comb_table_size; i++){
     fact_table[i] = f;
@@ -269,7 +267,7 @@ mpz_class recurse_cnt_parallel_memoized(const std::vector<int>& super_vec, int d
     return total/depth;
 }
 
-std::string to_sci_notation(const mpz_class& num, int sig_digits = 4) {
+std::string to_sci_notation(const mpz_class& num, int sig_digits) {
     std::string str = num.get_str();
     int len = str.length();
 
@@ -284,46 +282,4 @@ std::string to_sci_notation(const mpz_class& num, int sig_digits = 4) {
     }
     oss << "*10^" << (len - 1);
     return oss.str();
-}
-
-int main(int argc, char* argv[]) {
-    init_comb_table();
-    init_fact_table();
-    std::vector<int> super_vec = {0, 0, 0, 34};
-    bool use_perm = true;
-
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "-np") {
-            use_perm = false;
-            break;
-        }
-    }
-
-/*
-    std::vector<int> vec = firstv(4*13, 4);
-    mpz_class total_subsets = 0;
-    int cnt = 0;
-    while (!vec.empty()) {
-            if (vec_cnt(vec) <= univ_count){
-            cnt++;
-            mpz_class subsets = subset_num(vec, super_vec, true);
-            total_subsets += subsets;
-            std::cout << cnt << " " << to_sci_notation(subsets) << " " << vec << std::endl;
-        }
-        vec = nextv(vec);
-    }
-    std::cout << "Total subsets: " << to_sci_notation(total_subsets) << std::endl;
-    return 0;
-*/
-
-    for (int depth = 1; depth <= 4; depth++){
-      auto start = std::chrono::high_resolution_clock::now();
-      mpz_class result = recurse_cnt_parallel_memoized(super_vec, depth, use_perm);
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double> elapsed = end - start;
-
-      std::cout << depth << "-hand states: " << to_sci_notation(result) << " = " << result << std::endl;
-      std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
-    }
-    return 0;
 }
