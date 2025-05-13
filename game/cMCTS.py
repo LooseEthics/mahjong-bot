@@ -58,7 +58,6 @@ class Node:
             logit = action2logit(action)
             prob = policy_probs[logit]
             
-            # Create child node for each possible action
             child_game = self.game.clone()
             child_game.do_action(action)
             child = Node(child_game, self.args, self.root_pid, self, action, prob)
@@ -127,9 +126,7 @@ class MCTS:
                 [(self.game.clone(), self.args, root.node_pid, self.neural_net) for _ in range(num_simulations)]
             )
         
-        # Apply backpropagation serially to avoid race conditions
         for action, value in results:
-            # find or create the child node matching the action
             match = next((c for c in root.children if c.action_taken == action), None)
             if match is None:
                 new_game = root.game.clone()

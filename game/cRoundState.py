@@ -340,7 +340,7 @@ class RoundState():
     
     def action_ron(self, pidl: list[int]) -> None:
         self.agari = self.ldt()
-        self.round_end(pidl, end_state = GS_RON, end_state_str = f"Ron {pidl} on {self.last_discard.owner_pid}")
+        self.round_end(pidl, end_state = GS_RON, end_state_str = f"Ron {pidl} on {self.last_discard().owner_pid}")
     
     def action_tsumo(self) -> None:
         self.agari = self.drawn_tile
@@ -381,8 +381,9 @@ class RoundState():
             if pid == self.active_player and self.active_can_chii():
                 for t in self.possible_chii_starts():
                     valid_moves.append(f"c{onetile2tenhou(t)}") ## chii
-            if shanten.shanten == AGARI and not self.player_in_furiten(pid, shanten):
-                valid_moves.append("R") ## ron
+            if shanten.shanten <= TENPAI and not self.player_in_furiten(pid, shanten) and \
+                (recursive_hand_split(self.hands[pid] + [self.ldt()]) is not None or self.player_has_chiitoi(pid) or self.player_has_kokushi(pid)):
+                    valid_moves.append("R") ## ron
             if "D" not in valid_moves:
                 valid_moves.append("x") ## no call
         else:
@@ -410,8 +411,9 @@ class RoundState():
                 valid_moves.append("a") ## ankan
             if self.active_can_shouminkan():
                 valid_moves.append("s") ## shouminkan
-            if shanten.shanten == AGARI and self.drawn_tile != INVALID_TILE:
-                valid_moves.append("T") ## tsumo
+            if shanten.shanten <= TENPAI and self.drawn_tile != INVALID_TILE and \
+                (recursive_hand_split(self.hands[pid] + [self.drawn_tile]) is not None or self.player_has_chiitoi(pid) or self.player_has_kokushi(pid)):
+                    valid_moves.append("T") ## tsumo
         return valid_moves
     
     def next_call_player(self) -> int:
@@ -728,7 +730,7 @@ class RoundState():
     
     def player_has_rinshan(self, pid: int) -> bool:
         last_open = self.open[-1]
-        return last_open.owner_pid == pid and last_open.turn == turn and last_open.type in Kans
+        return last_open.owner_pid == pid and last_open.turn == self.turn and last_open.type in Kans
     
     def player_yakuhai_cnt(self, hand_melds: list[Meld]) -> int:
         pid = hand_melds[0].owner_pid
@@ -755,7 +757,7 @@ class RoundState():
         return False
     
     def player_has_ittsuu(self, hand_melds: list[Meld]) -> bool:
-        shuntsu = [m.tile for m in hand_melds if m.type == CHII].sorted()
+        shuntsu = sorted([m.tile for m in hand_melds if m.type == CHII])
         if len(shuntsu) >= 3:
             first_diff = [t - shuntsu[0] for t in shuntsu]
             second_diff = [t - shuntsu[1] for t in shuntsu]
@@ -776,15 +778,15 @@ class RoundState():
         return len(closed_koutsu) >= 3
     
     def player_has_sanshoku_doukou(self, hand_melds: list[Meld]) -> bool:
-        koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON].sorted()
-        if len(koukan_val) >= 3:
+        koukan = sorted([m.tile for m in hand_melds if m.type in Kans or m.type == PON])
+        if len(koukan) >= 3:
             if koukan[0] // 9 == 0 and koukan[0] + 9 in koukan and koukan[0] + 2*9 in koukan or \
                 koukan[1] // 9 == 0 and koukan[1] + 9 in koukan and koukan[1] + 2*9 in koukan:
                     return True
         return False
     
     def player_has_sankantsu(self, open_melds: list[Meld]) -> bool:
-        kantsu = [m.tile for m in hand_melds if m.type in Kans]
+        kantsu = [m.tile for m in open_melds if m.type in Kans]
         return len(kantsu) == 3
     
     def player_has_honroutou(self, open_hand: list[int]) -> bool:

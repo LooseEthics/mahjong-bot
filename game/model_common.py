@@ -50,7 +50,7 @@ def parse_args(args: list[str]) -> dict:
         model_index = None
     if model_index and len(args) > model_index:
         model_fname = args[model_index]
-        model_path = os.path.join(save_dir, model_fname)
+        model_path = os.path.join(model_dir, model_fname)
         if not model_fname in os.listdir(model_dir):
             print(f"Model <{model_path}> not found")
     else:
