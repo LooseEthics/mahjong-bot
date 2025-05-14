@@ -43,8 +43,6 @@ if __name__ == "__main__":
                     policy_logits, value = qnet(input_tensor)
                     
                 action_probs = F.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
-                
-                
                 best_action = max(valid_moves, key=lambda a: action_probs[action2logit(a)])
 
                 if arg_dict["verbose"]:

@@ -3,7 +3,11 @@ import os
 import sys
 import torch
 
+from cRoundState import RoundState
+
+from cMCTS import MCTS
 from cQNet import *
+from model_common import *
 
 if __name__ == "__main__":
     arg_dict = parse_args(sys.argv)
@@ -16,26 +20,31 @@ if __name__ == "__main__":
     qnet.load_state_dict(torch.load(arg_dict["model_path"]))
     qnet.eval()
 
-    # Get the player-to-move
-    pid = g.round.player_to_move()
+    r = RoundState("load", fname = arg_dict["state_path"])
+    mcts = MCTS(r, mcts_args, qnet)
+    
+    while r.game_state == GS_ONGOING:
+    
+        pid = r.player_to_move()
+        valid_moves = r.get_valid_moves(pid)
+        
+        print(r)
+        print("Valid moves:", valid_moves)
+            
+        if len(valid_moves) == 1:
+            r.do_action(valid_moves[0])
+        else:
+            input_tensor = r.get_visible_state(pid).to_tensor()
+            
+            with torch.no_grad():
+                policy_logits, value = qnet(input_tensor)
+                
+            action_probs = F.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
+            best_action = max(valid_moves, key=lambda a: action_probs[action2logit(a)])
 
-    # Get the visible state
-    visible_state = g.round.get_visible_state(pid)
-
-    # Convert to tensor
-    input_tensor = visible_state.to_tensor()  # shape: [1, 369]
-
-    # Get output
-    with torch.no_grad():
-        policy_logits, value = qnet(input_tensor)
-
-    # Convert policy logits to action probabilities
-    import torch.nn.functional as F
-    action_probs = F.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()  # shape: (98,)
-
-    # Example: pick the most probable legal action
-    valid_moves = g.round.get_valid_moves(pid)
-    best_action = max(valid_moves, key=lambda a: action_probs[action2logit(a)])
-
-    print("Value estimate:", value.item())
-    print("Best action:", best_action)
+            print("Value estimate:", value.item())
+            print("Best action:", best_action)
+            
+            r.do_action(best_action)
+            if arg_dict["wait_flag"]:
+                input("Press Enter to proceed")

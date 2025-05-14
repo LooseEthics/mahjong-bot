@@ -16,9 +16,10 @@ Defaults to the latest model.
 Default number of episodes is 1.
 Saves game results to game_results_eval.txt.
 
-### model_eval_single.py -s state [-m model] [-v] [-w]
+### model_eval_single.py -s state [-m model] [-w]
 Loads and evaluates saved game state using model.
 Defaults to the latest model.
+Forced verbose.
 Saves game results to game_results_eval.txt.
 
 ## Options

@@ -15,7 +15,7 @@ class RoundState():
             self.random_start_state()
         elif init_type == "load":
             self.load(kwargs["fname"])
-    
+
     def random_start_state(self):
         self.turn = 1
         self.active_player = 0
@@ -24,7 +24,7 @@ class RoundState():
         self.tiles = [i for i in range(34) for _ in range(4)]
         shuffle(self.tiles)
         self.hands = [sorted(self.tiles[i*13: (i+1)*13]) for i in range(4)]
-        self.open = [] # OpenMeld instances
+        self.open = [] # Meld instances
         self.discard = [] # Discard instances
         self.riichi = [INVALID_ROUND, INVALID_ROUND, INVALID_ROUND, INVALID_ROUND] # -1 not in riichi, >=0 riichi declaration turn
         self.dead_wall = self.tiles[52:66] # dora 1-5, ura 1-5, kan draw 1-4
@@ -38,7 +38,7 @@ class RoundState():
         self.agari = INVALID_TILE
         self.round_wind = randint(0, 3)
         self.score_change = [0, 0, 0, 0]
-    
+
     def clone(self) -> RoundState:
         new = RoundState.__new__(RoundState)
         new.turn = self.turn
@@ -61,7 +61,7 @@ class RoundState():
         new.round_wind = self.round_wind
         new.score_change = self.score_change[:]
         return new
-    
+
     def load(self, fname: str):
         with open(fname, "rb") as f:
             state = pickle.load(f)
@@ -70,7 +70,7 @@ class RoundState():
     def save(self, fname: str):
         with open(fname, "wb") as f:
             pickle.dump(self.__dict__, f)
-    
+
     def __repr__(self):
         s =  f"Turn: {self.turn}, Predraw: {self.predraw}\n"
         s += f"Active player: {WNames[self.active_player]}, Call player: {WNames[self.call_player]}\n"
@@ -87,20 +87,20 @@ class RoundState():
         s += f"Ura:  {tilelist2tenhou(self.dead_wall[5:10], False)}\n"
         s += f"Kan draws:  {tilelist2tenhou(self.dead_wall[10:], False)}\n"
         return s
-    
+
     def kan_cnt(self) -> int:
         return sum(1 for m in self.open if m.type in Kans)
-    
+
     def last_discard(self) -> Discard:
         return self.discard[-1] if self.discard else None
-    
+
     def ldt(self) -> int:
         return self.last_discard().tile if self.discard else INVALID_TILE
-        
+
     def player_can_pon(self, pid: int) -> bool:
         #print("player can pon", pid, self.last_discard().owner_pid, self.hands[pid], self.ldt())
         return self.discard and pid != self.last_discard().owner_pid and self.hands[pid].count(self.ldt()) >= 2
-    
+
     def who_can_pon(self) -> int:
         for pid in range(4):
             if self.player_can_pon(pid):
@@ -108,7 +108,7 @@ class RoundState():
                 return pid
         #print("who can pon", INVALID_PLAYER)
         return INVALID_PLAYER
-    
+
     def possible_chii_starts(self) -> list[int]:
         ldt = self.ldt()
         ldt_suit = ldt // 9
@@ -125,36 +125,36 @@ class RoundState():
                 out.append(ldt)
         #print("possible chii starts:", out)
         return out
-    
+
     def active_can_chii(self) -> bool:
         return self.possible_chii_starts() != []
-    
+
     def player_can_minkan(self, pid: int) -> bool:
         ldt = self.ldt()
         return self.kan_cnt() < 4 and pid != self.active_player and self.hands[pid].count(ldt) == 3
-    
+
     def who_can_minkan(self) -> int:
         for pid in range(4):
             if self.player_can_minkan(pid):
                 return pid
         return INVALID_PLAYER
-    
+
     def active_can_ankan(self) -> bool:
         return self.hands[self.active_player].count(self.drawn_tile) == 3 and self.kan_cnt() < 4
-    
+
     def active_can_shouminkan(self) -> bool:
         if self.kan_cnt() < 4:
             for m in self.open:
                 if m.owner_pid == self.active_player and m.type == PON and m.tile == self.drawn_tile:
                     return True
         return False
-    
+
     def active_can_kyuushuu_kyuuhai(self) -> bool:
         return self.turn <= 4 and len(self.open) == 0 and len([t for t in KokushiTiles if t in self.hands[self.active_player]]) >= 9
-    
+
     def action_kyuushuu_kyuuhai(self):
         self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Kyuushuu Kyuuhai")
-    
+
     def open_hand(self, pid: int) -> list[int]:
         out = self.hands[pid].copy()
         for m in self.open:
@@ -165,8 +165,8 @@ class RoundState():
                     # consider kans equivalent to pons for this
                     out += 3*[m.tile]
         return sorted(out)
-                
-    
+
+
     def shanten(self, pid: int, on_call: bool = False) -> Shanten:
         # find minimal shanten
         shanten_tile = INVALID_TILE
@@ -174,7 +174,7 @@ class RoundState():
             shanten_tile = self.drawn_tile
         elif on_call:
             shanten_tile = self.ldt()
-        
+
         return Shanten(hand = self.open_hand(pid), drawn_tile = shanten_tile)
 
     def round_end(self, pidl: list[int], end_state: int, end_state_str: str = "Ended") -> None:
@@ -217,7 +217,7 @@ class RoundState():
         for pid in range(4):
             if self.riichi[pid] != INVALID_TURN and pid not in pidl:
                 self.score_change[pid] -= 1000
-    
+
     def action_draw(self) -> None:
         if self.live_wall_index < 70:
             self.drawn_tile = self.live_wall[self.live_wall_index]
@@ -226,14 +226,14 @@ class RoundState():
         else:
             ## ryuukyoku
             self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Ryuukyoku")
-    
+
     def get_kan_owners(self) -> list[int]:
         out = []
         for m in self.open:
             if m.type in (ANKAN, MINKAN, SHOUMINKAN):
                 out.append(m.owner_pid)
         return out
-    
+
     def action_draw_kan(self) -> None:
         if len(self.dead_wall) > 10:
             self.drawn_tile = self.dead_wall[10 + self.kan_cnt()]
@@ -242,7 +242,7 @@ class RoundState():
                 if kan_owners[0] != kan_owners[1] or kan_owners[0] != kan_owners[2] or kan_owners[0] != kan_owners[3]:
                     ## suukaikan
                     self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suukaikan")
-    
+
     def action_discard(self, tile: int) -> None:
         ## tile id, not position in hand
         #print("action_discard", self.turn, self.live_wall_index, self.game_state_str)
@@ -258,7 +258,7 @@ class RoundState():
         else:
             print(f"{self.action_discard.__name__}: invalid discard", self.hands[self.active_player], tile)
             return
-        
+
         self.discard.append(Discard(self.turn, self.active_player, tile))
         if self.trigger_suufon_renda():
             self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suufon Renda")
@@ -266,20 +266,20 @@ class RoundState():
         self.active_player = (self.active_player + 1) % 4
         self.turn += 1
         self.predraw_prep()
-        
+
     def predraw_prep(self):
         p = self.who_can_pon()
         c = self.active_can_chii()
         if p != INVALID_PLAYER or c == True:
             self.calls_made = {pid:'?' if (c == True and pid == self.active_player or p == pid) else 'x' for pid in range(4)}
             self.call_player = self.next_call_player()
-    
+
     def trigger_suufon_renda(self):
         return self.turn == 4 and self.discard[0].tile in range(28, 32) and \
             self.discard[0].tile == self.discard[1].tile and \
             self.discard[0].tile == self.discard[2].tile and \
             self.discard[0].tile == self.discard[3].tile
-    
+
     def action_chii(self, start: int) -> None:
         ## sequence starting tile
         tile = self.ldt()
@@ -295,7 +295,7 @@ class RoundState():
             hand.remove(start)
             hand.remove(start + 1)
         self.open.append(Meld(pid, (pid - 1) % 4, CHII, start, self.turn))
-    
+
     def action_pon(self, pid: int) -> None:
         #print("action_pon", pid, self.hands[pid], self.ldt())
         tile = self.ldt()
@@ -304,7 +304,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.open.append(Meld(pid, (self.active_player - 1) % 4, PON, tile, self.turn))
         self.active_player = pid
-    
+
     def action_ankan(self) -> None:
         tile = self.drawn_tile
         pid = self.active_player
@@ -314,7 +314,7 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.open.append(Meld(pid, INVALID_PLAYER, ANKAN, tile, self.turn))
         self.drawn_tile = INVALID_TILE
-    
+
     def action_minkan(self, pid: int) -> None:
         tile = self.ldt()
         ## thrice
@@ -323,29 +323,29 @@ class RoundState():
         self.hands[pid].remove(tile)
         self.open.append(Meld(pid, (self.active_player - 1) % 4, MINKAN, tile, self.turn))
         self.active_player = pid
-    
+
     def action_shouminkan(self) -> None:
         for m in self.open:
             if m.owner_pid == self.active_player and m.tile == self.drawn_tile and m.type == PON:
                 m.type = SHOUMINKAN
                 self.drawn_tile = INVALID_TILE
                 return
-    
+
     def action_riichi(self) -> None:
         self.riichi[self.active_player] = self.turn
         for r in self.riichi:
             if r == INVALID_TURN:
                 return
         self.round_end([], end_state = GS_RYUUKYOKU, end_state_str = "Suucha Riichi")
-    
+
     def action_ron(self, pidl: list[int]) -> None:
         self.agari = self.ldt()
         self.round_end(pidl, end_state = GS_RON, end_state_str = f"Ron {pidl} on {self.last_discard().owner_pid}")
-    
+
     def action_tsumo(self) -> None:
         self.agari = self.drawn_tile
         self.round_end([self.active_player], end_state = GS_TSUMO, end_state_str = f"Tsumo {self.active_player}")
-    
+
     def player_in_furiten(self, pid: int, shanten: Shanten = None) -> bool:
         if shanten is None:
             shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
@@ -353,17 +353,17 @@ class RoundState():
             if t in self.player_discard_list(pid):
                 return True
         return False
-        
+
     def player_discard_list(self, pid: int) -> list[int]:
         lst = []
         for d in self.discard:
             if d.owner_pid == pid and d.tile not in lst:
                 lst.append(d.tile)
         return lst
-    
+
     def player_to_move(self) -> int:
         return self.call_player if self.call_player != INVALID_PLAYER else self.active_player
-    
+
     def get_valid_moves(self, pid: int) -> list[str]:
         valid_moves = []
         shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
@@ -415,18 +415,18 @@ class RoundState():
                 if last_open.tile_in_meld(ldt):
                     valid_moves.remove(f"d{onetile2tenhou(ldt)}")
         return valid_moves
-    
+
     def next_call_player(self) -> int:
         for pid, call in self.calls_made.items():
             if call == '?':
                 return pid
         return INVALID_PLAYER
-    
+
     def get_priority_call(self) -> str:
         #print("priority call", self.calls_made)
         priority_call = ""
         ron_calls = []
-        
+
         ## ron
         for pid, call in self.calls_made.items():
             if call == 'R':
@@ -435,27 +435,27 @@ class RoundState():
             priority_call = "R"
             for pid in ron_calls:
                 priority_call += f"{pid}"
-        
+
         ## pon, minkan
         if not priority_call:
             for pid, call in self.calls_made.items():
                 if call == 'p' or call == 'm':
                     priority_call = call
-        
+
         ## chii
         if not priority_call:
             for pid, call in self.calls_made.items():
                 if call[0] == 'c' or call == 'D':
                     priority_call = call
-        
+
         if not priority_call:
             priority_call = "x"
         return priority_call
-    
+
     def update_calls_made(self, call: str):
         #print("update_calls_made", self.calls_made, self.call_player, call)
         self.calls_made[self.call_player] = call
-    
+
     def do_action(self, action: str = "x"):
         #print("do_action:", action)
         if not action:
@@ -506,7 +506,7 @@ class RoundState():
             self.action_ron(ron_list)
         elif action == "k":
             self.action_kyuushuu_kyuuhai()
-    
+
     def get_value_and_ended(self, pid: int):
         if self.game_state != GS_ONGOING:
             return self.score_change[pid], True
@@ -531,13 +531,13 @@ class RoundState():
             '''
         ## game ongoing
         return 0, False
-    
+
     def player_open_melds(self, pid: int) -> list[Meld]:
         return [m for m in self.open if m.owner_pid == pid]
-    
+
     def player_hand_is_closed(self, pid: int) -> bool:
         return len([m for m in self.player_open_melds(pid) if m.type != ANKAN]) == 0
-    
+
     def get_visible_dora(self, pad = True):
         if pad:
             out = [INVALID_TILE] * 5
@@ -546,7 +546,7 @@ class RoundState():
         else:
             out = [self.dead_wall[i] for i in range(self.kan_cnt() + 1)]
         return out
-    
+
     def get_visible_ura(self, pad = True):
         if pad:
             out = [INVALID_TILE] * 5
@@ -555,7 +555,7 @@ class RoundState():
         else:
             out = [self.dead_wall[i + 5] for i in range(self.kan_cnt() + 1)]
         return out
-    
+
     def get_visible_state(self, pid: int = INVALID_PLAYER):
         if pid == INVALID_PLAYER:
             pid = self.active_player
@@ -564,7 +564,7 @@ class RoundState():
             ## ghost tile for after-call discards
             hand.append(INVALID_TILE)
         return VisibleState(pid, self.drawn_tile, hand, self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
-            
+
     def complete_hand_split(self, pid: int) -> list[Meld] | None:
         ## only call this for winning hands
         hand = self.hands[pid] + [self.agari]
@@ -572,22 +572,22 @@ class RoundState():
         split_melds = [Meld(pid, INVALID_PLAYER, PON if m.count(m[0]) == 3 else PAIR if m.count(m[0]) == 2 else CHII, m[0], INVALID_TURN) for m in split]
         hand_melds = self.player_open_melds(pid) + split_melds
         return hand_melds
-    
-    
-    
-    
-    
+
+
+
+
+
     ## scoring
-    
+
     def get_fu(self, pid: int) -> int:
         fu = 20
         final_hand = self.hands[pid] + [self.agari]
         final_hand_set = set(final_hand)
-        
+
         ## chiitoi
         if self.player_has_chiitoi(pid):
             return 25
-        
+
         shanten = self.shanten(pid, on_call = (self.drawn_tile == INVALID_TILE))
         ## triple/kan fu
         for m in self.player_open_melds(pid):
@@ -612,41 +612,41 @@ class RoundState():
                     fu += 8
                 else:
                     fu += 4
-        
+
         ## wait fu
         ## only simple waits get fu I think
         if len(shanten.waits) == 1:
             fu += 2
-        
+
         ## yakuhai pair
         for t in final_hand_set:
             if t >= 27 and final_hand.count(t) == 2:
                 fu += 2
-        
+
         ## open pinfu
         if not self.player_hand_is_closed(pid) and fu == 20:
             fu += 2
-        
+
         ## rounding up to 10
         fu = fu - (fu % 10) + (fu % 10 > 0)*10
-        
+
         return fu
-    
-    
+
+
     def player_has_chiitoi(self, pid: int) -> bool:
         hand = self.hands[pid] + [self.agari]
         for t in set(hand):
             if hand.count(t) != 2:
                 return False
         return True
-    
+
     def player_has_iipeikou(self, hand_melds: list[Meld]) -> bool:
         shuntsu_starts = [m.tile for m in hand_melds if m.type == CHII]
         for tile in set(shuntsu_starts):
             if shuntsu_starts.count(tile) == 2:
                 return True
         return False
-    
+
     def player_has_ryanpeikou(self, hand_melds: list[Meld]) -> bool:
         shuntsu_starts = [m.tile for m in hand_melds if m.type == CHII]
         double_shun = 0
@@ -654,54 +654,54 @@ class RoundState():
             if shuntsu_starts.count(tile) == 2:
                 double_shun += 1
         return double_shun == 2
-    
+
     def player_has_tanyao(self, pid: int) -> bool:
         for t in self.hands[pid] + [self.agari]:
             if t in KokushiTiles:
                 return False
         return True
-    
+
     def player_has_kokushi(self, pid: int) -> bool:
         for t in KokushiTiles:
             if t not in self.hands[pid] + [self.agari]:
                 return False
         return True
-    
+
     def hand_is_daisangen(self, hand: list[int]) -> bool:
         if hand.count(HAKU) == 3 and hand.count(HATSU) == 3 and hand.count(CHUN) == 3:
             return True
         else:
             return False
-    
+
     def player_has_suuankou(self, pid: int):
         cnts = [self.hands[pid].count(t) for t in set(self.hands[pid])]
         if cnts.count(3) == 4:
             return True
         else:
             return False
-    
+
     def hand_is_suushiihou(self, hand: list[int]) -> bool:
         ## both shousuushii and daisuushii
         return TON in hand and NAN in hand and SHAA in hand and PEI in hand
-    
+
     def hand_is_tsuuiisou(self, hand: list[int]) -> bool:
         for t in hand:
             if t < JIHAI_OFFSET:
                 return False
         return True
-    
+
     def hand_is_ryuuiisou(self, hand: list[int]) -> bool:
         for t in hand:
             if t not in RyuuiisouTiles:
                 return False
         return True
-    
+
     def hand_is_chinroutou(self, hand: list[int]) -> bool:
         for t in hand:
             if t not in Terminals:
                 return False
         return True
-    
+
     def player_has_chuurenpou(self, pid: int) -> bool:
         hand = self.hands[pid] + [self.agari]
         suit = hand[0] // 9
@@ -714,7 +714,7 @@ class RoundState():
             return True
         else:
             return False
-    
+
     def player_has_suukantsu(self, open_melds: list[Meld]) -> bool:
         if len(open_melds) == 4:
             for m in open_melds:
@@ -723,15 +723,15 @@ class RoundState():
             return True
         else:
             return False
-    
+
     def player_has_tenhou_chiihou(self) -> bool:
         ## win on first draw, no calls
         return self.turn <= 4 and self.open[0].type == INVALID_MELD and self.drawn_tile != INVALID_TILE
-    
+
     def player_has_rinshan(self, pid: int) -> bool:
         last_open = self.open[-1]
         return last_open.owner_pid == pid and last_open.turn == self.turn and last_open.type in Kans
-    
+
     def player_yakuhai_cnt(self, hand_melds: list[Meld]) -> int:
         pid = hand_melds[0].owner_pid
         koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
@@ -740,7 +740,7 @@ class RoundState():
             if t in Sangenpai or (t in Kazehai and (t - JIHAI_OFFSET == pid or t - JIHAI_OFFSET == self.round_wind)):
                 cnt += 1
         return cnt
-    
+
     def player_has_chanta(self, hand_melds: list[Meld]) -> bool:
         for m in hand_melds:
             if m.tile in KokushiTiles or (m.type == CHII and m.tile % 9 == 6):
@@ -748,14 +748,14 @@ class RoundState():
             else:
                 return False
         return True
-    
+
     def player_has_sanshoku_doujun(self, hand_melds: list[Meld]) -> bool:
         shuntsu_val = [m.tile % 9 for m in hand_melds if m.type == CHII]
         if len(shuntsu_val) >= 3:
             if shuntsu_val.count(shuntsu_val[0]) >= 3 or shuntsu_val.count(shuntsu_val[1]) >= 3:
                 return True
         return False
-    
+
     def player_has_ittsuu(self, hand_melds: list[Meld]) -> bool:
         shuntsu = sorted([m.tile for m in hand_melds if m.type == CHII])
         if len(shuntsu) >= 3:
@@ -764,16 +764,16 @@ class RoundState():
             if (shuntsu[0] % 9 == 0 and 3 in first_diff and 6 in first_diff) or (shuntsu[1] % 9 == 0 and 3 in second_diff and 6 in second_diff):
                 return True
         return False
-    
+
     def player_has_toitoi(self, hand_melds: list[Meld]) -> bool:
         koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
         return len(koukan) == 4
-    
+
     def player_has_sanankou(self, hand_melds: list[Meld], open_melds: list[Meld]) -> bool:
         ## TODO: koutsu completed via ron is considered open
         closed_koutsu = [m.tile for m in hand_melds if m.type == PON and m.turn == INVALID_TURN] ## hand melds converts kans to pons
         return len(closed_koutsu) >= 3
-    
+
     def player_has_sanshoku_doukou(self, hand_melds: list[Meld]) -> bool:
         koukan = sorted([m.tile for m in hand_melds if m.type in Kans or m.type == PON])
         if len(koukan) >= 3:
@@ -781,21 +781,21 @@ class RoundState():
                 koukan[1] // 9 == 0 and koukan[1] + 9 in koukan and koukan[1] + 2*9 in koukan:
                     return True
         return False
-    
+
     def player_has_sankantsu(self, open_melds: list[Meld]) -> bool:
         kantsu = [m.tile for m in open_melds if m.type in Kans]
         return len(kantsu) == 3
-    
+
     def player_has_honroutou(self, open_hand: list[int]) -> bool:
         for t in open_hand:
             if t not in KokushiTiles:
                 return False
         return True
-    
+
     def player_has_shousangen(self, hand_melds: list[Meld]) -> bool:
         koukan = [m.tile for m in hand_melds if m.type in Kans or m.type == PON]
         return HAKU in koukan and HATSU in koukan and CHUN in koukan
-    
+
     def player_has_honitsu(self, open_hand: list[int]) -> bool:
         non_jihai = [t for t in open_hand if t < JIHAI_OFFSET]
         suit = non_jihai[0] // 9
@@ -803,7 +803,7 @@ class RoundState():
             if t // 9 != suit:
                 return False
         return True
-    
+
     def player_has_junchan(self, hand_melds: list[Meld]) -> bool:
         for m in hand_melds:
             if m.tile in Terminals or (m.type == CHII and m.tile % 9 == 6):
@@ -811,21 +811,21 @@ class RoundState():
             else:
                 return False
         return True
-    
+
     def player_has_chinitsu(self, open_hand: list[int]) -> bool:
         suit = open_hand[0] // 9
         for t in open_hand:
             if t // 9 != suit:
                 return False
         return True
-    
+
     def get_score(self, pid: int) -> int:
-        
+
         open_hand = self.open_hand(pid) + [self.agari]
         open_melds = self.player_open_melds(pid)
         #print("get_score open hand", tilelist2tenhou(open_hand))
         #print("get_score open melds", open_melds)
-        
+
         ## yakuman
         if self.player_has_kokushi(pid) or \
             self.hand_is_daisangen(open_hand) or \
@@ -837,13 +837,13 @@ class RoundState():
             self.player_has_chuurenpou(pid) or \
             self.player_has_suukantsu(open_melds) or \
             self.player_has_tenhou_chiihou():
-                return 8000 
-        
+                return 8000
+
         han = 0
         fu = self.get_fu(pid)
         hand_melds = self.complete_hand_split(pid)
         has_chiitoi = False
-        
+
         if self.riichi[pid] != INVALID_TURN:
             han += 1
             if self.riichi[pid] <= 4 and (open_melds[0].turn == INVALID_TURN or open_melds[0].turn > 4):
@@ -859,7 +859,7 @@ class RoundState():
             else:
                 ## houtei
                 han += 1
-        
+
         if self.player_hand_is_closed(pid):
             if self.drawn_tile != INVALID_TILE:
                 ## menzen tsumo
@@ -876,7 +876,7 @@ class RoundState():
                     han += 2
             elif self.player_has_iipeikou(hand_melds):
                 han += 1
-        
+
         if self.player_has_rinshan(pid):
             han += 1
         ## TODO chankan
@@ -918,11 +918,11 @@ class RoundState():
                 han += 6
             else:
                 han += 5
-        
+
         if han == 0:
             ## no yaku - keishiki
             return 0
-        
+
         dora_list = self.get_visible_dora(False)
         if self.riichi[pid] > INVALID_ROUND:
             dora_list += self.get_visible_ura(False)
@@ -939,7 +939,7 @@ class RoundState():
             for m in open_melds:
                 if m.type in Kans and m.tile == dora:
                     han += 1
-        
+
         if han >= 13:
             ## kazoe yakuman
             return 8000
@@ -959,11 +959,11 @@ class RoundState():
         if pts >= 2000:
             return 2000
         return pts
-    
+
     def get_normalized_score_change(self):
         return [s/48000 for s in self.score_change]
 
-    
+
 def recursive_hand_split(hand: list[int]) -> list[list[int]] | None:
     #print("recursive_hand_split", hand)
     first_tile = hand[0]

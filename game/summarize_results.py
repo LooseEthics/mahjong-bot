@@ -17,6 +17,7 @@ def parse_line(line):
 
 def process_file(file_path):
     result_dict = defaultdict(lambda: defaultdict(int))
+    episode_counts = defaultdict(int)
 
     with open(file_path, 'r') as f:
         for line in f:
@@ -24,14 +25,19 @@ def process_file(file_path):
             if parsed:
                 ep_num, result, scores = parsed
                 result_dict[ep_num][(result, scores)] += 1
+                episode_counts[ep_num] += 1
 
-    return result_dict
+    return result_dict, episode_counts
 
 if __name__ == "__main__":
     file_path = "game_results_eval.txt"
-    result = process_file(file_path)
-    eps = sorted([ep for ep in result])
+    result_dict, episode_counts = process_file(file_path)
+    eps = sorted(result_dict.keys())
+    
     for ep in eps:
-        print(f"Episode {ep}:")
-        for (res, scores), count in result[ep].items():
-            print(f"  ({res}, {scores}): {count}")
+        total = episode_counts[ep]
+        print(f"Episode {ep} - total: {total}")
+        for (res, scores), count in result_dict[ep].items():
+            percentage = (count / total) * 100
+            print(f"  ({res}, {scores}): {count} ({percentage:.1f}%)")
+        print()
