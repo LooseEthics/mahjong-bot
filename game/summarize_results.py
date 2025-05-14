@@ -39,5 +39,5 @@ if __name__ == "__main__":
         print(f"Episode {ep} - total: {total}")
         for (res, scores), count in result_dict[ep].items():
             percentage = (count / total) * 100
-            print(f"  ({res}, {scores}): {count} ({percentage:.1f}%)")
+            print(f"  ({res}, {scores}): {count} ({percentage:.3f}%)")
         print()
