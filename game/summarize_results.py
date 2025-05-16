@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+import matplotlib.pyplot as plt
 
 def parse_line(line):
     match = re.match(r"model checkpoints\\qnet_ep(\d+)\.pt (.*?) (\[.*\])", line.strip())
@@ -33,6 +34,8 @@ if __name__ == "__main__":
     file_path = "game_results_eval.txt"
     result_dict, episode_counts = process_file(file_path)
     eps = sorted(result_dict.keys())
+    graph_eps = []
+    graph_perc = []
     
     for ep in eps:
         total = episode_counts[ep]
@@ -40,4 +43,17 @@ if __name__ == "__main__":
         for (res, scores), count in result_dict[ep].items():
             percentage = (count / total) * 100
             print(f"  ({res}, {scores}): {count} ({percentage:.3f}%)")
+            if (total >= 10000) and (res, scores) == ("Ryuukyoku", (0, 0, 0, 0)):
+                graph_eps.append(ep)
+                graph_perc.append(percentage)
         print()
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(graph_eps, graph_perc, marker='o', linestyle='-', color='blue')
+    plt.title("Frequency of Noten Ryuukyoku per episode")
+    plt.xlabel("Episode")
+    plt.ylabel("Percentage")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
