@@ -235,7 +235,8 @@ class RoundState():
         return out
 
     def action_draw_kan(self) -> None:
-        if len(self.dead_wall) > 10:
+        if self.kan_cnt() <= 4:
+            #print(f"draw_kan {len(self.dead_wall)} {self.kan_cnt()}")
             self.drawn_tile = self.dead_wall[10 + self.kan_cnt()]
             kan_owners = self.get_kan_owners()
             if len(kan_owners) >= 4:
@@ -729,7 +730,10 @@ class RoundState():
         return self.turn <= 4 and self.open[0].type == INVALID_MELD and self.drawn_tile != INVALID_TILE
 
     def player_has_rinshan(self, pid: int) -> bool:
-        last_open = self.open[-1]
+        if len(self.open) > 0:
+            last_open = self.open[-1]
+        else:
+            return False
         return last_open.owner_pid == pid and last_open.turn == self.turn and last_open.type in Kans
 
     def player_yakuhai_cnt(self, hand_melds: list[Meld]) -> int:
