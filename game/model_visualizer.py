@@ -4,19 +4,11 @@ import os
 import sys
 import torch
 
-from model_common import model_dir
+from model_common import *
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print("No args")
-        quit()
-
-    model_name = sys.argv[1]
-    model_path = os.path.join(model_dir, model_name)
-    if not os.path.exists(model_path):
-        print(f"Model {model_name} not found in {model_dir}")
-        quit()
-        
+    arg_dict = parse_args(sys.argv)
+    model_path = arg_dict["model_path"]
 
     state_dict = torch.load(model_path)
     for name, param in state_dict.items():
@@ -41,6 +33,6 @@ if __name__ == "__main__":
         ax.set_ylabel("Output Units")
         fig.colorbar(im, ax=ax)
 
-    fig.suptitle(f"Model Weights {model_name}", fontsize=16)
+    fig.suptitle(f"Model Weights {model_path}", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
