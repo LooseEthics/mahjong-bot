@@ -6,7 +6,6 @@ model_dir = "checkpoints"
 state_dir = "save_states"
 model_pattern = r'qnet_ep(\d+)\.pt'
 conf_name = "model_conf.conf"
-repo_path = ""
 
 mcts_args = {
     'C': 1.41,
@@ -14,18 +13,13 @@ mcts_args = {
 }
 
 def parse_conf():
-    global repo_path
-    global model_dir
     with open(conf_name, 'r') as f:
         for line in f:
             if s := line.strip():
-                repo_path = os.path.join("../..", s)
-                model_dir = os.path.join(repo_path, model_dir)
-                return
+                return os.path.join(r"..\..", s)
 
 def latest_model_path(model_dir: str):
     files = os.listdir(model_dir)
-    
     max_num = -1
     latest_model = None
     
@@ -45,7 +39,8 @@ def latest_model_path(model_dir: str):
 def parse_args(args: list[str]) -> dict:
     out = {
         "wait_flag": False,
-        "verbose": False
+        "verbose": False,
+        "repo_path": parse_conf(),
         }
     
     if "-w" in args:
@@ -66,10 +61,12 @@ def parse_args(args: list[str]) -> dict:
         if not model_fname in os.listdir(model_dir):
             print(f"Model <{model_path}> not found")
     else:
-        model_path = latest_model_path(model_dir)
+        print(os.path.join(out["repo_path"]))
+        print(model_dir)
+        model_path = latest_model_path(os.path.join(out["repo_path"], model_dir))
     if model_path is not None:
         out["model_path"] = model_path
-    
+        out["model_name"] = os.path.basename(model_path)
     if "-s" in args:
         state_index = args.index("-s") + 1
     elif "--state" in args:

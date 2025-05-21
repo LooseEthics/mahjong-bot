@@ -14,8 +14,10 @@ if __name__ == "__main__":
         print("Missing model")
         quit()
     
+    model_path = arg_dict["model_path"]
+    print("model_path", model_path)
     qnet = QNet()
-    qnet.load_state_dict(torch.load(arg_dict["model_path"]))
+    qnet.load_state_dict(torch.load(model_path))
     qnet.eval()
     
     g = GameState()
@@ -53,5 +55,5 @@ if __name__ == "__main__":
                     input("Press Enter to proceed")
         
         print(g.round.game_state_str, g.round.score_change)
-        with open("game_results_eval.txt", "a") as f:
-            f.write(f"model {arg_dict['model_path']} {g.round.game_state_str} {g.round.score_change}\n")
+        with open(os.path.join(arg_dict["repo_path"], "game_results_eval.txt"), "a") as f:
+            f.write(f"model {model_dir}\\{arg_dict['model_name']} {g.round.game_state_str} {g.round.score_change}\n")

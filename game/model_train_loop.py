@@ -21,19 +21,18 @@ from model_common import *
     
 
 if __name__ == "__main__":
-    parse_conf()
-    if not repo_name:
-        print("No repo name")
-        quit()
-    os.makedirs(model_dir, exist_ok = True)
+    
     arg_dict = parse_args(sys.argv)
+    model_dir = os.path.join(arg_dict["repo_path"], model_dir)
     model_path = arg_dict["model_path"]
+    
+    os.makedirs(model_dir, exist_ok = True)
     
     qnet = QNet()
     optimizer = torch.optim.Adam(qnet.parameters(), lr=1e-3)
     if model_path:
         qnet.load_state_dict(torch.load(model_path))
-        start_ep = int(model_path[model_path.index('_ep') + 3:model_path.index('.')])
+        start_ep = int(model_path[model_path.index('_ep') + 3: -3])
         print(f"Loaded model {model_path}")
     else:
         start_ep = 0
@@ -74,7 +73,7 @@ if __name__ == "__main__":
             
         if arg_dict["verbose"]:
             print(g.round.game_state_str, g.round.score_change)
-        with open("game_results_training.txt", "a") as f:
+        with open(os.path.join(model_dir, "game_results_training.txt"), "a") as f:
             f.write(f"ep {episode} {g.round.game_state_str} {g.round.score_change}\n")
         
         results = g.round.get_normalized_score_change()

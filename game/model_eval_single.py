@@ -11,7 +11,7 @@ from model_common import *
 
 if __name__ == "__main__":
     parse_conf()
-    if not repo_name:
+    if not repo_path:
         print("No repo name")
         quit()
     arg_dict = parse_args(sys.argv)
@@ -19,9 +19,10 @@ if __name__ == "__main__":
         print("Missing model or state")
         quit()
     
+    model_path = os.path.join(arg_dict["repo_path"], arg_dict["model_path"])
     
     qnet = QNet()
-    qnet.load_state_dict(torch.load(arg_dict["model_path"]))
+    qnet.load_state_dict(torch.load(model_path))
     qnet.eval()
 
     r = RoundState("load", fname = arg_dict["state_path"])
