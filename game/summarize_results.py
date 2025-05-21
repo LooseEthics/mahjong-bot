@@ -1,6 +1,10 @@
+import os
 import re
+import sys
 from collections import defaultdict
 import matplotlib.pyplot as plt
+
+from model_common import parse_args
 
 def parse_line(line):
     match = re.match(r"model checkpoints\\qnet_ep(\d+)\.pt (.*?) (\[.*\])", line.strip())
@@ -31,7 +35,8 @@ def process_file(file_path):
     return result_dict, episode_counts
 
 if __name__ == "__main__":
-    file_path = "game_results_eval.txt"
+    arg_dict = parse_args(sys.argv)
+    file_path = os.path.join(arg_dict["repo_path"], "game_results_eval.txt")
     result_dict, episode_counts = process_file(file_path)
     eps = sorted(result_dict.keys())
     graph_eps = []
