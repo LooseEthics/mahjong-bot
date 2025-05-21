@@ -21,6 +21,10 @@ from model_common import *
     
 
 if __name__ == "__main__":
+    parse_conf()
+    if not repo_name:
+        print("No repo name")
+        quit()
     os.makedirs(model_dir, exist_ok = True)
     arg_dict = parse_args(sys.argv)
     model_path = arg_dict["model_path"]

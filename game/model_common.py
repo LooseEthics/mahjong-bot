@@ -5,11 +5,23 @@ import re
 model_dir = "checkpoints"
 state_dir = "save_states"
 model_pattern = r'qnet_ep(\d+)\.pt'
+conf_name = "model_conf.conf"
+repo_path = ""
 
 mcts_args = {
     'C': 1.41,
     'search_num': 20
 }
+
+def parse_conf():
+    global repo_path
+    global model_dir
+    with open(conf_name, 'r') as f:
+        for line in f:
+            if s := line.strip():
+                repo_path = os.path.join("../..", s)
+                model_dir = os.path.join(repo_path, model_dir)
+                return
 
 def latest_model_path(model_dir: str):
     files = os.listdir(model_dir)

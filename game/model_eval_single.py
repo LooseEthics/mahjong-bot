@@ -10,6 +10,10 @@ from cQNet import *
 from model_common import *
 
 if __name__ == "__main__":
+    parse_conf()
+    if not repo_name:
+        print("No repo name")
+        quit()
     arg_dict = parse_args(sys.argv)
     if "state_path" not in arg_dict or "model_path" not in arg_dict:
         print("Missing model or state")
