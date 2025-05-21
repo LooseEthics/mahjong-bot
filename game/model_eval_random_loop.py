@@ -16,7 +16,7 @@ if __name__ == "__main__":
     
     model_path = arg_dict["model_path"]
     print("model_path", model_path)
-    qnet = QNet()
+    qnet = QNet(config['hidden_num'], config['hidden_dim'])
     qnet.load_state_dict(torch.load(model_path))
     qnet.eval()
     
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         
         print(f"episode {episode}")
         g.init_round()
-        mcts = MCTS(g.round, mcts_args, qnet)
+        mcts = MCTS(g.round, config, qnet)
         
         while g.round.game_state == GS_ONGOING:
             

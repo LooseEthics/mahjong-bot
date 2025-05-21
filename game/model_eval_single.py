@@ -21,12 +21,12 @@ if __name__ == "__main__":
     
     model_path = os.path.join(arg_dict["repo_path"], arg_dict["model_path"])
     
-    qnet = QNet()
+    qnet = QNet(config['hidden_num'], config['hidden_dim'])
     qnet.load_state_dict(torch.load(model_path))
     qnet.eval()
 
     r = RoundState("load", fname = arg_dict["state_path"])
-    mcts = MCTS(r, mcts_args, qnet)
+    mcts = MCTS(r, config, qnet)
     
     while r.game_state == GS_ONGOING:
     

@@ -48,7 +48,7 @@ def train_qnet(qnet, optimizer, dataset, batch_size=32, epochs=1):
             optimizer.step()
 
 class QNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_hidden = 1, hidden_dim = 256):
         super().__init__()
         ## input size - VisibleState - 364
         ## output size - all possible actions - 98
@@ -56,14 +56,13 @@ class QNet(nn.Module):
         ##      riichi discard - 34
         ##      chii calls - 7*3
         ##      pon, kan, tsumo, ron, kk, noop, draw - 9
-        self.backbone = nn.Sequential(
-            nn.Linear(QN_IN_SIZE, 256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-        )
-        self.policy_head = nn.Linear(256, QN_OUT_SIZE)
-        self.value_head = nn.Linear(256, 1)
+        layers = [nn.Linear(QN_IN_SIZE, hidden_dim), nn.ReLU()]
+        for _ in range(num_hidden):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.backbone = nn.Sequential(*layers)
+        self.policy_head = nn.Linear(hidden_dim, QN_OUT_SIZE)
+        self.value_head = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
         x = self.backbone(x)

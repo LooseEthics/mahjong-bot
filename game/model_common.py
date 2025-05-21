@@ -7,15 +7,26 @@ state_dir = "save_states"
 model_pattern = r'qnet_ep(\d+)\.pt'
 conf_name = "model_conf.conf"
 
-mcts_args = {
+config = {
     'C': 1.41,
-    'search_num': 20
+    'search_num': 20,
+    'hidden_num': 1,
+    'hidden_dim': 256,
 }
 
 def parse_conf():
     with open(conf_name, 'r') as f:
         for line in f:
             if s := line.strip():
+                lst = [token.strip for token in s.split('=')]
+                if lst[0] == 'C':
+                    config['C'] = float(lst[1])
+                elif lst[0] == 'search_num':
+                    config['search_num'] = float(lst[1])
+                elif lst[0] == 'hidden_num':
+                    config['hidden_num'] = float(lst[1])
+                elif lst[0] == 'hidden_dim':
+                    config['hidden_dim'] = float(lst[1])
                 return os.path.join(r"..\..", s)
 
 def latest_model_path(model_dir: str):
@@ -37,10 +48,11 @@ def latest_model_path(model_dir: str):
         return None
 
 def parse_args(args: list[str]) -> dict:
+    parse_conf()
     out = {
         "wait_flag": False,
         "verbose": False,
-        "repo_path": parse_conf(),
+        "repo_path": os.path.join("..\..", f"mahjong-model-h{config['hidden_num']}-b{config['search_num']}")
         }
     
     if "-w" in args:

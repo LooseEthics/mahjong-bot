@@ -28,7 +28,7 @@ if __name__ == "__main__":
     
     os.makedirs(model_dir, exist_ok = True)
     
-    qnet = QNet()
+    qnet = QNet(config['hidden_num'], config['hidden_dim'])
     optimizer = torch.optim.Adam(qnet.parameters(), lr=1e-3)
     if model_path:
         qnet.load_state_dict(torch.load(model_path))
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         
         g.init_round()
         trajectory = []
-        mcts = MCTS(g.round, mcts_args, qnet)
+        mcts = MCTS(g.round, config, qnet)
 
         while g.round.game_state == GS_ONGOING:
             
