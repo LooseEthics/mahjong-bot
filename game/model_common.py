@@ -15,19 +15,20 @@ config = {
 }
 
 def parse_conf():
+    global config
     with open(conf_name, 'r') as f:
         for line in f:
             if s := line.strip():
-                lst = [token.strip for token in s.split('=')]
+                lst = [token.strip() for token in s.split('=')]
+                #print(lst)
                 if lst[0] == 'C':
                     config['C'] = float(lst[1])
                 elif lst[0] == 'search_num':
-                    config['search_num'] = float(lst[1])
+                    config['search_num'] = int(lst[1])
                 elif lst[0] == 'hidden_num':
-                    config['hidden_num'] = float(lst[1])
+                    config['hidden_num'] = int(lst[1])
                 elif lst[0] == 'hidden_dim':
-                    config['hidden_dim'] = float(lst[1])
-                return os.path.join(r"..\..", s)
+                    config['hidden_dim'] = int(lst[1])
 
 def latest_model_path(model_dir: str):
     files = os.listdir(model_dir)
@@ -54,6 +55,7 @@ def parse_args(args: list[str]) -> dict:
         "verbose": False,
         "repo_path": os.path.join("..\..", f"mahjong-model-h{config['hidden_num']}-b{config['search_num']}")
         }
+    #print(out)
     
     if "-w" in args:
         out["wait_flag"] = True

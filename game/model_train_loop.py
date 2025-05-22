@@ -24,7 +24,10 @@ if __name__ == "__main__":
     
     arg_dict = parse_args(sys.argv)
     model_dir = os.path.join(arg_dict["repo_path"], model_dir)
-    model_path = arg_dict["model_path"]
+    if "model_path" in arg_dict:
+        model_path = arg_dict["model_path"]
+    else:
+        model_path = None
     
     os.makedirs(model_dir, exist_ok = True)
     

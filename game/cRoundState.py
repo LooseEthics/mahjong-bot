@@ -236,8 +236,8 @@ class RoundState():
 
     def action_draw_kan(self) -> None:
         if self.kan_cnt() <= 4:
-            #print(f"draw_kan {len(self.dead_wall)} {self.kan_cnt()}")
-            self.drawn_tile = self.dead_wall[10 + self.kan_cnt()]
+            ## always has at least 1 kan
+            self.drawn_tile = self.dead_wall[10 + self.kan_cnt() - 1]
             kan_owners = self.get_kan_owners()
             if len(kan_owners) >= 4:
                 if kan_owners[0] != kan_owners[1] or kan_owners[0] != kan_owners[2] or kan_owners[0] != kan_owners[3]:
