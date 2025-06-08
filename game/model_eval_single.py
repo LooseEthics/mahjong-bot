@@ -5,7 +5,6 @@ import torch
 
 from cRoundState import RoundState
 
-from cMCTS import MCTS
 from cQNet import *
 from model_common import *
 
@@ -26,7 +25,6 @@ if __name__ == "__main__":
     qnet.eval()
 
     r = RoundState("load", fname = arg_dict["state_path"])
-    mcts = MCTS(r, config, qnet)
     
     while r.game_state == GS_ONGOING:
     

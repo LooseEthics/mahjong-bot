@@ -48,7 +48,7 @@ if __name__ == "__main__":
         
         g.init_round()
         trajectory = []
-        mcts = MCTS(g.round, config, qnet)
+        mcts = MCTS(g.round, config, qnet, config['full_state_randomize'])
 
         while g.round.game_state == GS_ONGOING:
             

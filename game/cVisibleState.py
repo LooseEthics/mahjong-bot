@@ -5,8 +5,9 @@ from cDiscard import Discard
 from cMeld import Meld
     
 class VisibleState():
-    def __init__(self, pid : int, draw: int, hand: list[int], discard: list[Discard], open_melds: list[Meld], visible_dora: list[int], round_wind: int, riichi: list[int]):
-        self.pid = pid
+    def __init__(self, ptm : int, active_pid : int, draw: int, hand: list[int], discard: list[Discard], open_melds: list[Meld], visible_dora: list[int], round_wind: int, riichi: list[int]):
+        self.ptm = ptm
+        self.apid = active_pid
         self.draw = draw
         self.hand = hand
         self.discard = discard
@@ -22,7 +23,7 @@ class VisibleState():
 
     def to_tensor(self):
         #self.print_len()
-        lst = [self.pid, self.draw] + self.hand ## 2 + 14
+        lst = [self.ptm, self.draw] + self.hand ## 2 + 14
         flat_discard = [-1] * 88 * 3
         for i in range(len(self.discard)):
             flat_discard[3*i] = self.discard[i].turn

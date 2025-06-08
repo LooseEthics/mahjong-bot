@@ -4,12 +4,11 @@ import torch
 import torch.nn.functional as F
 
 from cGameState import GameState
-from cMCTS import MCTS
 from cQNet import *
 from model_common import *
 
-if __name__ == "__main__":
-    arg_dict = parse_args(sys.argv)
+def main_eval_random_loop(argv):
+    arg_dict = parse_args(argv)
     if "model_path" not in arg_dict:
         print("Missing model")
         quit()
@@ -27,7 +26,6 @@ if __name__ == "__main__":
         
         print(f"episode {episode}")
         g.init_round()
-        mcts = MCTS(g.round, config, qnet)
         
         while g.round.game_state == GS_ONGOING:
             
@@ -57,3 +55,6 @@ if __name__ == "__main__":
         print(g.round.game_state_str, g.round.score_change)
         with open(os.path.join(arg_dict["repo_path"], "game_results_eval.txt"), "a") as f:
             f.write(f"model {model_dir}\\{arg_dict['model_name']} {g.round.game_state_str} {g.round.score_change}\n")
+
+if __name__ == "__main__":
+    main_eval_random_loop(sys.argv)

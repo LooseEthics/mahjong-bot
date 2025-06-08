@@ -29,6 +29,8 @@ def parse_conf():
                     config['hidden_num'] = int(lst[1])
                 elif lst[0] == 'hidden_dim':
                     config['hidden_dim'] = int(lst[1])
+                elif lst[0] == 'full_state_randomize':
+                    config['full_state_randomize'] = int(lst[1])
 
 def latest_model_path(model_dir: str):
     files = os.listdir(model_dir)

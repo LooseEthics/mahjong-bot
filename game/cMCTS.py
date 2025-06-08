@@ -107,10 +107,11 @@ class Node:
             self.parent.backpropagate(value)
 
 class MCTS:
-    def __init__(self, game, args, neural_net):
+    def __init__(self, game, args, neural_net, random_game = False):
         self.game = game
         self.args = args
         self.neural_net = neural_net
+        self.random_game = random_game
 
     def search(self):
         search_game = self.game.clone()
@@ -123,7 +124,7 @@ class MCTS:
         with Pool(num_workers) as pool:
             results = pool.starmap(
                 run_simulation,
-                [(self.game.clone(), self.args, root.node_pid, self.neural_net) for _ in range(num_simulations)]
+                [(self.game.clone() if not self.random_game else RoundState("from_visible", visible = search_game.get_visible_state()), self.args, root.node_pid, self.neural_net) for _ in range(num_simulations)]
             )
         
         for action, value in results:

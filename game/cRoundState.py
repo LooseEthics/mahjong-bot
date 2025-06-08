@@ -15,6 +15,8 @@ class RoundState():
             self.random_start_state()
         elif init_type == "load":
             self.load(kwargs["fname"])
+        elif init_type == "from_visible":
+            self.from_visible(kwargs["visible"])
 
     def random_start_state(self):
         self.turn = 1
@@ -70,6 +72,47 @@ class RoundState():
     def save(self, fname: str):
         with open(fname, "wb") as f:
             pickle.dump(self.__dict__, f)
+    
+    def from_visible(self, vis):
+        self.turn = len(vis.discard)
+        self.active_player = vis.apid
+        self.call_player = vis.ptm if vis.ptm != vis.apid else INVALID_PLAYER
+        self.calls_made = {pid: 'x' for pid in range(4)}
+        visible_tiles = [t for t in vis.hand] + [t for t in vis.visible_dora] + [d.tile for d in vis.discard]
+        for m in vis.open:
+            if m.type == CHII:
+                visible_tiles += [m.tile, m.tile + 1, m.tile + 2]
+            elif m.type == PON:
+                visible_tiles += 3*[m.tile]
+            else:
+                visible_tiles += 4*[m.tile]
+        tiles_to_randomize = [i for i in range(34) for _ in range(4 - visible_tiles.count(i))]
+        shuffle(tiles_to_randomize)
+        self.hands = []
+        for i in range(4):
+            if i < vis.ptm:
+                self.hands.append(sorted(tiles_to_randomize[i*13: (i+1)*13]))
+            elif i == vis.ptm:
+                self.hands.append(vis.hand)
+            else:
+                self.hands.append(sorted(tiles_to_randomize[(i - 1)*13: (i)*13]))
+        self.open = [m.clone() for m in vis.open]
+        self.discard = [d.clone() for d in vis.discard]
+        self.riichi = vis.riichi[:]
+        offset = 53 - len(vis.visible_dora)
+        self.dead_wall = vis.visible_dora[:] + tiles_to_randomize[39:offset]
+        self.live_wall = tiles_to_randomize[offset:]
+        self.live_wall_index = 70 - len(live_wall)
+        self.live_wall = [INVALID_TILE] * self.live_wall_index + self.live_wall
+        self.drawn_tile = vis.draw
+        self.winner = []
+        self.game_state = GS_ONGOING
+        self.game_state_str = "Ongoing"
+        self.predraw = self.drawn_tile == INVALID_TILE
+        self.agari = INVALID_TILE
+        self.round_wind = vis.round_wind
+        self.score_change = [0, 0, 0, 0]
+        
 
     def __repr__(self):
         s =  f"Turn: {self.turn}, Predraw: {self.predraw}\n"
@@ -564,7 +607,17 @@ class RoundState():
         if self.predraw or self.drawn_tile != INVALID_TILE:
             ## ghost tile for after-call discards
             hand.append(INVALID_TILE)
-        return VisibleState(pid, self.drawn_tile, hand, self.discard, self.open, self.get_visible_dora(), self.round_wind, self.riichi)
+        return VisibleState(
+            ptm = pid, 
+            active_pid = self.active_player, 
+            draw = self.drawn_tile, 
+            hand = hand, 
+            discard = self.discard, 
+            open_melds = self.open, 
+            visible_dora = self.get_visible_dora(), 
+            round_wind = self.round_wind, 
+            riichi = self.riichi
+            )
 
     def complete_hand_split(self, pid: int) -> list[Meld] | None:
         ## only call this for winning hands
