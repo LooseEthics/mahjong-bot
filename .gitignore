@@ -2,3 +2,4 @@ lit/*
 *.o
 *.exe
 *.pyc
+*.conf

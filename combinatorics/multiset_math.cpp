@@ -6,7 +6,6 @@
 #include <ostream>
 #include <sstream>
 #include <thread>
-#include <unordered_map>
 
 #include "multiset_math.h"
 
@@ -188,16 +187,6 @@ std::vector<std::vector<int>> sub_vec(
     }
     return subbed;
 }
-
-using Key = std::pair<std::vector<int>, int>;
-struct KeyHash {
-    size_t operator()(const Key& k) const {
-        size_t seed = 0;
-        for (int i : k.first) seed ^= std::hash<int>()(i) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        seed ^= std::hash<int>()(k.second);
-        return seed;
-    }
-};
 
 std::unordered_map<Key, mpz_class, KeyHash> memo;
 std::mutex memo_mutex;

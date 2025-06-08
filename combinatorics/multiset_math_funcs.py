@@ -3,7 +3,7 @@ import numpy as np
 from numba import njit
 
 univ_count = 34
-mc = 13
+mc = 15
 deg = 4
 
 from math import comb

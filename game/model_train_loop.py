@@ -76,7 +76,7 @@ if __name__ == "__main__":
             
         if arg_dict["verbose"]:
             print(g.round.game_state_str, g.round.score_change)
-        with open(os.path.join(model_dir, "game_results_training.txt"), "a") as f:
+        with open(os.path.join(model_dir, r"..\game_results_training.txt"), "a") as f:
             f.write(f"ep {episode} {g.round.game_state_str} {g.round.score_change}\n")
         
         results = g.round.get_normalized_score_change()

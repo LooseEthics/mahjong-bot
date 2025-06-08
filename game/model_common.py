@@ -53,7 +53,7 @@ def parse_args(args: list[str]) -> dict:
     out = {
         "wait_flag": False,
         "verbose": False,
-        "repo_path": os.path.join("..\..", f"mahjong-model-h{config['hidden_num']}-b{config['search_num']}")
+        "repo_path": os.path.join(r"..\..", f"mahjong-model-h{config['hidden_num']}-b{config['search_num']}")
         }
     #print(out)
     

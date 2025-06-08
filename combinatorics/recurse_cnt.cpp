@@ -3,6 +3,8 @@
 
 #include "multiset_math.h"
 
+extern std::unordered_map<Key, mpz_class, KeyHash> memo;
+
 int main(int argc, char* argv[]) {
     init_comb_table();
     init_fact_table();
@@ -41,6 +43,7 @@ int main(int argc, char* argv[]) {
 
       std::cout << depth << "-hand states: " << to_sci_notation(result) << " = " << result << std::endl;
       std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+      std::cout << "Memo size: " << memo.size() << std::endl;
     }
     return 0;
 }
