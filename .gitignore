@@ -3,3 +3,4 @@ lit/*
 *.exe
 *.pyc
 *.conf
+game/test.py
